@@ -378,7 +378,9 @@ dependencies = [
  "hellodb-auth",
  "hellodb-core",
  "hellodb-crypto",
+ "hellodb-query",
  "hellodb-storage",
+ "hellodb-sync",
  "serde_json",
 ]
 
@@ -423,12 +425,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "hellodb-query"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "hellodb-auth",
+ "hellodb-core",
+ "hellodb-crypto",
+ "hellodb-storage",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "hellodb-storage"
 version = "0.1.0"
 dependencies = [
  "hellodb-core",
  "hellodb-crypto",
  "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "hellodb-sync"
+version = "0.1.0"
+dependencies = [
+ "hellodb-core",
+ "hellodb-crypto",
+ "hellodb-storage",
  "serde",
  "serde_json",
  "tempfile",
