@@ -1,0 +1,15 @@
+[package]
+name = "hellodb-core"
+description = "hellodb core: record model, schema registry, namespace, branch metadata, canonicalization"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+hellodb-crypto = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+blake3 = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]

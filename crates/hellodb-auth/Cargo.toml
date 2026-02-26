@@ -1,0 +1,14 @@
+[package]
+name = "hellodb-auth"
+description = "hellodb authorization: consent proofs, delegation, namespace access control"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+hellodb-crypto = { workspace = true }
+hellodb-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
