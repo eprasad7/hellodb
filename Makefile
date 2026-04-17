@@ -15,10 +15,14 @@ RELEASE_DIR     := target/release
 PLUGIN_DIR      := plugin
 REPO_ROOT       := $(shell pwd)
 
-.PHONY: help all build test fmt lint check bundle dev install uninstall doctor status clean setup-cloudflare rotate-gateway-token
+.PHONY: help all build test fmt lint check bundle dev install uninstall doctor status clean setup-cloudflare rotate-gateway-token onboard
 
 help:
 	@echo "hellodb make targets:"
+	@echo ""
+	@echo "  onboard             end-to-end install: build + plugin + init + opt Cloudflare"
+	@echo "                       (this is the one command new users should run)"
+	@echo ""
 	@echo "  build               cargo build --release (all binaries)"
 	@echo "  test                cargo test --workspace"
 	@echo "  fmt                 cargo fmt --all"
@@ -77,6 +81,9 @@ doctor: build
 
 status: build
 	./$(RELEASE_DIR)/hellodb status
+
+onboard:
+	@./scripts/onboard.sh
 
 setup-cloudflare:
 	@./scripts/setup-cloudflare.sh
