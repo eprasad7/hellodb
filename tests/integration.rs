@@ -380,7 +380,7 @@ fn run_full_scenario(engine: &mut dyn StorageEngine) {
         vec!["app_a.commerce".into(), "health.vitals".into()],
         1000,
         3_600_000, // 1 hour
-        100,      // max 100 queries
+        100,       // max 100 queries
     )
     .unwrap();
 
