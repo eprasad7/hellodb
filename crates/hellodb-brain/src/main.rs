@@ -5,7 +5,7 @@
 //!   2. Evaluate gates (cool-down + minimum episode count)
 //!   3. Digest new episodes into consolidated facts via a pluggable backend
 //!   4. Write facts to a `{facts}/digest-{timestamp}` draft branch
-//!   5. Update state; user merges approved digests via `/hellodb-review`
+//!   5. Update state; user merges approved digests via `/hellodb:review`
 //!
 //! The reversed-dependency pattern: primary agent never triggers memory
 //! operations, never knows the brain exists. Brain observes via tail.

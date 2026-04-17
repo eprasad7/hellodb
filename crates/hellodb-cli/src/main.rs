@@ -253,6 +253,21 @@ fn cmd_status(_args: &[String]) -> Result<i32, String> {
 /// absent, empty, or unreadable, we print nothing and exit 0. Silence is the
 /// intentional response — a broken recall should not break the user's
 /// Claude Code session start.
+fn print_recall_help() {
+    println!("hellodb recall — top facts ranked by decayed reinforcement score");
+    println!();
+    println!("usage: hellodb recall [flags]");
+    println!();
+    println!("flags:");
+    println!("  --top N             number of facts to return (default 8)");
+    println!("  --namespace NS      namespace to rank over (default claude.facts)");
+    println!("  --format md|json    output shape (default md)");
+    println!("  --half-life-days D  decay half-life in days (default 7)");
+    println!("  --verbose, -v       show errors on stderr (default: silent — safe for hooks)");
+    println!("  --quiet             explicit quiet mode (default)");
+    println!("  -h, --help          this help");
+}
+
 fn cmd_recall(args: &[String]) -> Result<i32, String> {
     let mut top: usize = 8;
     let mut namespace = "claude.facts".to_string();
@@ -267,6 +282,10 @@ fn cmd_recall(args: &[String]) -> Result<i32, String> {
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
+            "-h" | "--help" => {
+                print_recall_help();
+                return Ok(0);
+            }
             "--top" => {
                 top = args.get(i + 1).and_then(|s| s.parse().ok()).unwrap_or(8);
                 i += 2;

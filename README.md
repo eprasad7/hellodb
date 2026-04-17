@@ -1,0 +1,200 @@
+# hellodb
+
+**Sovereign, encrypted, branchable memory for agents.**
+
+A local-first database for agent memory that you own: SQLCipher-encrypted at
+rest, content-addressed + signed records, git-style branches, and a passive
+digest pipeline that turns raw session episodes into curated, decay-ranked
+facts. Optional Cloudflare backing (Workers AI embeddings, R2 sync) through
+your own account — zero shared service, zero affiliate middleman.
+
+Ships as a Claude Code plugin with:
+- **5 skills** that Claude triggers automatically (`/hellodb:memorize`,
+  `/hellodb:recall`, `/hellodb:review`, `/hellodb:digest-now`,
+  `/hellodb:consolidate-now`)
+- **2 sub-agents** (`memory-digest`, `memory-consolidate`) running on Haiku
+  by default — cheap, fast, offline-capable
+- **Stop hook** that fires the digest pipeline in the background after
+  every session, idempotent, cool-down-gated
+- **16+ MCP tools** exposing every primitive (namespaces, schemas,
+  records, branches, merge, tail cursor, reinforcement metadata, vector
+  upsert/recall, embed, ingest)
+
+---
+
+## Quick start
+
+**macOS / Linux:**
+
+```sh
+curl -fsSL hellodb.dev/install | sh
+```
+
+**Windows (PowerShell 5.1+ or PowerShell Core):**
+
+```powershell
+iwr -useb hellodb.dev/install.ps1 | iex
+```
+
+That's it. The installer:
+
+1. Detects your platform and downloads the matching release tarball
+2. Verifies SHA256
+3. Installs `hellodb`, `hellodb-mcp`, and `hellodb-brain` into `/usr/local/bin`
+   (or `~/.local/bin` / `%USERPROFILE%\.hellodb\bin` as a fallback) and
+   adds it to PATH
+4. Runs `hellodb init` to generate your identity key + encrypted DB at
+   `~/.hellodb/` (mode 0600 on the key)
+5. Registers the plugin with Claude Code if `claude` is on your PATH
+
+Restart Claude Code once after install. The plugin's skills become visible
+to the session automatically.
+
+### Optional: Cloudflare-backed semantic search
+
+Semantic recall (`/hellodb:recall`, `hellodb_embed_and_search`) needs an
+embedding backend. Cloudflare's Workers AI has a generous free tier
+(~90K embeddings/day on `bge-small-en-v1.5`) and R2 for encrypted delta
+sync (10 GB + zero egress).
+
+```sh
+git clone https://github.com/eprasad7/hellodb
+cd hellodb
+make setup-cloudflare   # wrangler OAuth, deploys a gateway Worker to your account
+```
+
+This writes the env vars to `~/.hellodb/env.sh` and (with confirmation) a
+source line to your `~/.zshrc`. One OAuth click; your CF account owns
+everything — we never see your key.
+
+Without this step, hellodb still works as a local encrypted store with
+filter-based (non-semantic) recall.
+
+---
+
+## The memory loop
+
+```
+  ┌──────────────────┐                                    ┌────────────────┐
+  │ Claude session   │  user says durable thing           │  Brain         │
+  │                  ├──── /hellodb:memorize ────►┬──────►│  (Stop hook,   │
+  │                  │                            │ tail  │   every       │
+  │                  │  agent-author writes       │       │   session end) │
+  └──────────────────┘                            ▼       └──┬─────────────┘
+          ▲                            ┌────────────────┐    │ digest via
+          │                            │  claude.       │    │ memory-digest
+          │ /hellodb:recall            │  episodes      │    │ sub-agent (Haiku)
+          │ (auto-triggers)            │  (raw)         │    ▼
+          │                            └────────────────┘  ┌────────────────┐
+          │                                                │  claude.facts/ │
+          │                            ┌────────────────┐  │  digest-<ts>   │
+          └────── embed_and_search ────┤  claude.facts/ │◄─┤  (draft branch)│
+                  + decay ranking      │  main          │  │                │
+                                       └────────────────┘  └────────────────┘
+                                              ▲                   │
+                                              │ /hellodb:review   │
+                                              └───────────────────┘
+                                                   (user merges)
+```
+
+**Privacy model:** records are content-addressed and signed by a local
+Ed25519 identity. The SQLite file is encrypted with a SQLCipher key
+derived from the identity seed via BLAKE3. Vector indices are sealed
+per-namespace with ChaCha20-Poly1305 via [`hellodb-crypto::NamespaceKey`].
+
+**Reversed-dependency pattern:** the primary agent never triggers memory
+operations. A separate `hellodb-brain` daemon tails episodes and digests
+them via a sub-agent that runs on the user's own Claude Code subscription
+(or optionally, on their Cloudflare Worker).
+
+---
+
+## Architecture
+
+```
+crates/
+├── hellodb-crypto     Ed25519, X25519, ChaCha20-Poly1305, BLAKE3 primitives
+├── hellodb-core       Record model, namespaces, schemas, branches, merge
+├── hellodb-storage    SQLCipher + MemoryEngine + tail-cursor + metadata sidecar
+├── hellodb-auth       Consent proofs, delegation credentials, access gate
+├── hellodb-query      Filter / sort / cursor-paginate query engine
+├── hellodb-sync       Encrypted-delta sync: FileSystem, Memory, GatewayBackend
+├── hellodb-vector     Per-namespace encrypted ANN index with POSIX flock
+├── hellodb-embed      Pluggable Embedder: Cloudflare gateway, OpenAI-compat,
+│                      mock (deterministic, for tests), fastembed (local ONNX, opt-in feature)
+├── hellodb-brain      Passive digest daemon — CLI + Stop-hook orchestration
+├── hellodb-mcp        stdio JSON-RPC MCP server exposing all primitives
+└── hellodb-cli        Unified `hellodb` front door: init / status / recall / doctor / mcp / brain
+
+plugin/                 Claude Code plugin bundle (manifest, skills, agents, hooks)
+gateway/                TypeScript Cloudflare Worker: Workers AI + R2 proxy
+installer/              TypeScript Cloudflare Worker: serves install.sh / install.ps1
+scripts/                install.sh + install.ps1 + onboard.sh + setup-cloudflare.sh
+landing/                Next.js landing page (served at hellodb.dev)
+```
+
+---
+
+## Developing from source
+
+```sh
+git clone https://github.com/eprasad7/hellodb
+cd hellodb
+
+# Build + run + install plugin locally in one command
+make onboard          # prompts for Rust install if missing, then build + bundle + init + optional Cloudflare
+
+# Or, step by step:
+make build            # cargo build --release
+make test             # cargo test --workspace
+make bundle           # copy binaries into plugin/bin/
+make install          # register with Claude Code (user scope)
+make setup-cloudflare # zero-token gateway deploy via wrangler login
+```
+
+See the Makefile for the full target list.
+
+---
+
+## CLI reference
+
+```
+hellodb init                 first-time setup: data dir, identity, brain.toml
+hellodb status               identity + namespaces + record counts + brain state
+hellodb recall [--top N]     top facts ranked by decayed reinforcement score
+                             flags: --top, --namespace, --format md|json,
+                                    --half-life-days, --verbose
+hellodb mcp                  run the MCP server (stdio; for Claude Code)
+hellodb brain [--status]     run one passive-memory digest pass
+                             flags: --dry-run, --force, --status, --init-config
+hellodb doctor               diagnose config / permission / DB-open issues
+```
+
+Configure via `HELLODB_HOME` (default `~/.hellodb`). All binaries read the
+same encrypted DB from that location.
+
+---
+
+## License
+
+MIT — see [LICENSE](./LICENSE).
+
+---
+
+## Security
+
+If you find a vulnerability, please open a private security advisory at
+https://github.com/eprasad7/hellodb/security/advisories/new rather than a
+public issue. No bug bounty, but we'll respond quickly and credit you in
+the fix.
+
+---
+
+## Acknowledgments
+
+Built on [SQLCipher](https://www.zetetic.net/sqlcipher/),
+[rusqlite](https://github.com/rusqlite/rusqlite),
+[BLAKE3](https://github.com/BLAKE3-team/BLAKE3), and
+[ed25519-dalek](https://github.com/dalek-cryptography/curve25519-dalek).
+Runs optionally on [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/)
+and [R2](https://developers.cloudflare.com/r2/) via your own account.
