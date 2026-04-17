@@ -49,7 +49,7 @@ You're retrieving memory from the user's hellodb to answer their current questio
 
 - **One tool call per skill invocation.** Don't do 3 searches to triangulate — pick the best query the first time. If the first shot doesn't land, the memory probably doesn't have what you need.
 - **Never fabricate facts.** If a fact isn't in the hits, don't invent one because it sounds plausible.
-- **Don't reinforce automatically.** Reinforcement happens at review time (`/hellodb:hellodb-review`) or when consolidate runs; not on every recall.
+- **Don't reinforce automatically.** Reinforcement happens at review time (`/hellodb:review`) or when consolidate runs; not on every recall.
 - **Mid-conversation only.** Don't trigger on the very first turn of a session just to see what's there. Trigger only when the current user turn creates a reason to check.
 - **Respect archived facts.** The MCP tool's `recall_deep` is configured to skip archived records; trust it. Don't try to include them.
 - **Be quiet on misses.** If nothing matches, the user shouldn't even know you checked.

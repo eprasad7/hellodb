@@ -101,10 +101,12 @@ elif ! command -v claude >/dev/null 2>&1; then
   warn "install Claude Code, then run:   make install"
 else
   info "registering plugin with Claude Code (user scope)..."
-  claude plugin marketplace list 2>/dev/null | grep -q "hellodb" \
+  # Anchor presence checks to the exact list-line shape so we don't
+  # false-positive on any substring containing "hellodb".
+  claude plugin marketplace list 2>/dev/null | grep -Eq '^[[:space:]]*❯[[:space:]]+hellodb[[:space:]]*$' \
     || claude plugin marketplace add "$ROOT" >/dev/null 2>&1 \
     || warn "marketplace add failed (may already exist)"
-  claude plugin list 2>/dev/null | grep -q "hellodb@hellodb" \
+  claude plugin list 2>/dev/null | grep -Eq '^[[:space:]]*❯[[:space:]]+hellodb@hellodb([[:space:]]|$)' \
     || claude plugin install hellodb@hellodb >/dev/null 2>&1 \
     || warn "plugin install failed (may already be installed)"
   ok "plugin registered."
@@ -193,7 +195,7 @@ echo ""
 echo "next:"
 echo "  - open a NEW shell (or 'source ~/.hellodb/env.sh')"
 echo "  - restart Claude Code so it picks up the plugin"
-echo "  - try: claude → type '/hellodb:hellodb-review' or just have a conversation"
+echo "  - try: claude → type '/hellodb:review' or just have a conversation"
 echo ""
 if [[ "$CF_ENABLED" != "1" ]]; then
   echo "  (Cloudflare not enabled yet — 'make setup-cloudflare' whenever you want semantic recall)"

@@ -116,16 +116,33 @@ ok "installed: hellodb, hellodb-mcp, hellodb-brain"
 
 # The plugin bundle ships alongside the binaries — copy it to ~/.hellodb/plugin
 # so `claude plugin marketplace add` can point at it.
-PLUGIN_DEST="${HELLODB_HOME:-$HOME/.hellodb}/plugin"
-mkdir -p "$(dirname "$PLUGIN_DEST")"
+# The plugin bundle + the marketplace manifest both ship in the tarball.
+# `claude plugin marketplace add <dir>` expects a directory containing
+# `.claude-plugin/marketplace.json` at its root, so we lay out:
+#
+#     $INSTALL_ROOT/
+#       plugin/             (the plugin itself)
+#       .claude-plugin/
+#         marketplace.json  (the manifest `claude plugin marketplace add` looks for)
+INSTALL_ROOT="${HELLODB_HOME:-$HOME/.hellodb}"
+PLUGIN_DEST="$INSTALL_ROOT/plugin"
+MARKETPLACE_DEST="$INSTALL_ROOT/.claude-plugin"
+mkdir -p "$INSTALL_ROOT"
+
 if [ -d "$TMP/out/plugin" ]; then
   rm -rf "$PLUGIN_DEST"
   cp -R "$TMP/out/plugin" "$PLUGIN_DEST"
-  # Real binaries just copied in a moment ago, but the plugin bundle's
-  # plugin/bin/ should also carry them for the marketplace consumer.
+  # Bundle's plugin/bin/ needs the .exe/unix binaries the consumer will run.
   mkdir -p "$PLUGIN_DEST/bin"
   cp "$BIN_SRC/hellodb" "$BIN_SRC/hellodb-mcp" "$BIN_SRC/hellodb-brain" "$PLUGIN_DEST/bin/"
   chmod +x "$PLUGIN_DEST/bin/"*
+fi
+
+# Copy marketplace.json so `claude plugin marketplace add $INSTALL_ROOT` works.
+# Without this, every fresh install fails at plugin registration.
+if [ -d "$TMP/out/.claude-plugin" ]; then
+  rm -rf "$MARKETPLACE_DEST"
+  cp -R "$TMP/out/.claude-plugin" "$MARKETPLACE_DEST"
 fi
 
 # ----- PATH setup ---------------------------------------------------------
@@ -135,17 +152,28 @@ case ":$PATH:" in
   *)
     # Append a line to the user's shell rc. Choose the one matching $SHELL.
     RC=""
+    SHELL_KIND=""
     case "${SHELL:-}" in
-      */zsh)  RC="$HOME/.zshrc" ;;
-      */bash) RC="$HOME/.bashrc" ;;
-      */fish) RC="$HOME/.config/fish/config.fish" ;;
+      */zsh)  RC="$HOME/.zshrc"                  ; SHELL_KIND="posix" ;;
+      */bash) RC="$HOME/.bashrc"                 ; SHELL_KIND="posix" ;;
+      */fish) RC="$HOME/.config/fish/config.fish"; SHELL_KIND="fish"  ;;
     esac
     if [ -n "$RC" ]; then
-      if ! grep -Fq "$INSTALL_DIR" "$RC" 2>/dev/null; then
+      # Anchor the idempotency check to the literal export line, not just the
+      # install dir — a user may have `$INSTALL_DIR` mentioned in the rc for
+      # an unrelated reason (history line, comment, another tool) without
+      # actually exporting it onto PATH.
+      MARK="# hellodb installer PATH"
+      if ! grep -Fq "$MARK" "$RC" 2>/dev/null; then
+        mkdir -p "$(dirname "$RC")"
         {
           echo ""
-          echo "# hellodb installer — added on $(date +%Y-%m-%d)"
-          echo "export PATH=\"$INSTALL_DIR:\$PATH\""
+          echo "$MARK (added $(date +%Y-%m-%d))"
+          if [ "$SHELL_KIND" = "fish" ]; then
+            echo "set -gx PATH $INSTALL_DIR \$PATH"
+          else
+            echo "export PATH=\"$INSTALL_DIR:\$PATH\""
+          fi
         } >> "$RC"
         ok "added $INSTALL_DIR to PATH via $RC (restart your shell or run: source $RC)"
       fi
@@ -172,14 +200,18 @@ if [ "${HELLODB_SKIP_PLUGIN:-0}" = "1" ]; then
   info "skipping Claude Code plugin registration (HELLODB_SKIP_PLUGIN=1)"
 elif command -v claude >/dev/null 2>&1; then
   info "registering plugin with Claude Code..."
-  if claude plugin marketplace list 2>/dev/null | grep -q hellodb; then
+  # Tight match: marketplace list lines look like `  ❯ <name>\n    Source: ...`.
+  # We want to match the exact marketplace name, not any substring that
+  # happens to contain "hellodb" (e.g. a marketplace URL mentioning it).
+  if claude plugin marketplace list 2>/dev/null | grep -Eq '^[[:space:]]*❯[[:space:]]+hellodb[[:space:]]*$'; then
     ok "marketplace 'hellodb' already registered"
   else
-    claude plugin marketplace add "$PLUGIN_DEST/.." >/dev/null 2>&1 \
-      && ok "marketplace added from $PLUGIN_DEST/.." \
-      || warn "marketplace add failed — run manually: claude plugin marketplace add $PLUGIN_DEST/.."
+    claude plugin marketplace add "$INSTALL_ROOT" >/dev/null 2>&1 \
+      && ok "marketplace added from $INSTALL_ROOT" \
+      || warn "marketplace add failed — run manually: claude plugin marketplace add $INSTALL_ROOT"
   fi
-  if claude plugin list 2>/dev/null | grep -q "hellodb@hellodb"; then
+  # Plugin list lines look like `  ❯ hellodb@hellodb\n    Version: ...`.
+  if claude plugin list 2>/dev/null | grep -Eq '^[[:space:]]*❯[[:space:]]+hellodb@hellodb([[:space:]]|$)'; then
     ok "plugin already installed"
   else
     claude plugin install hellodb@hellodb >/dev/null 2>&1 \

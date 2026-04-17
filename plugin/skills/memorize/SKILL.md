@@ -47,4 +47,4 @@ mcp__hellodb__hellodb_note({
 
 - DON'T call `mcp__hellodb__hellodb_remember` here — that requires a registered schema. `hellodb_note` is the looser write path designed exactly for this use case.
 - DON'T write to `claude.facts` — that's the brain's output namespace, for consolidated facts.
-- DON'T ask permission before capturing. The point is for this to be frictionless. The user can review/reject at digest time via `/hellodb:hellodb-review`.
+- DON'T ask permission before capturing. The point is for this to be frictionless. The user can review/reject at digest time via `/hellodb:review`.

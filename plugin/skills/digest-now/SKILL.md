@@ -57,13 +57,13 @@ You are running the memory-digest pipeline against hellodb. Your job:
 
 10. **Report.** Print a compact JSON summary to stdout:
     ```json
-    {"status": "digested", "episodes_read": N, "facts_written": M, "branch": "claude.facts/agent-digest-…", "next_step": "run /hellodb:hellodb-review to merge"}
+    {"status": "digested", "episodes_read": N, "facts_written": M, "branch": "claude.facts/agent-digest-…", "next_step": "run /hellodb:review to merge"}
     ```
 
 ## Ground rules
 
 - **Don't announce each step to the user.** If this is a hook-fired session (env var set), be silent except for the final JSON. If interactive, one short paragraph summarizing results is enough.
-- **Never auto-merge.** The digest branch must stay as a draft. User approves via `/hellodb:hellodb-review`.
+- **Never auto-merge.** The digest branch must stay as a draft. User approves via `/hellodb:review`.
 - **Haiku cost bound:** the memory-digest agent is tuned for haiku. Don't override the model. If you're tempted to give it a follow-up clarifying question, don't — refactor the input instead.
 - **No recursion.** Do not invoke `/hellodb:digest-now` from within this skill. Do not re-invoke the memory-digest agent twice. One call per skill execution.
 

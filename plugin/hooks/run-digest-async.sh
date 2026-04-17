@@ -66,7 +66,7 @@ printf '%s' "$now" > "$LAST_RUN_FILE"
 # so it can't go off-script. `HELLODB_DIGEST_HOOK=1` is the recursion guard
 # — the spawned session's Stop hook will see it and bail out of this branch.
 nohup env HELLODB_DIGEST_HOOK=1 \
-  claude -p "/hellodb:hellodb-digest-now" \
+  claude -p "/hellodb:digest-now" \
     --dangerously-skip-permissions \
   >>"$DIGEST_LOG" 2>&1 </dev/null &
 

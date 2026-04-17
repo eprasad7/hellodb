@@ -119,7 +119,11 @@ try {
   }
   Ok "installed: hellodb.exe, hellodb-mcp.exe, hellodb-brain.exe"
 
-  # ----- copy plugin bundle ---------------------------------------------
+  # ----- copy plugin bundle + marketplace manifest ----------------------
+  # Layout must mirror install.sh:
+  #   $Home_\plugin\              (the plugin itself)
+  #   $Home_\.claude-plugin\
+  #     marketplace.json          (manifest `claude plugin marketplace add` looks for)
 
   $PluginDest = Join-Path $Home_ "plugin"
   if (Test-Path $PluginDest) { Remove-Item -Recurse -Force $PluginDest }
@@ -128,6 +132,15 @@ try {
   $PluginBin = Join-Path $PluginDest "bin"
   foreach ($exe in @("hellodb.exe", "hellodb-mcp.exe", "hellodb-brain.exe")) {
     Copy-Item -Force -Path (Join-Path $BinSrc $exe) -Destination (Join-Path $PluginBin $exe)
+  }
+
+  $MarketplaceSrc = Join-Path $OutDir ".claude-plugin"
+  if (Test-Path $MarketplaceSrc) {
+    $MarketplaceDest = Join-Path $Home_ ".claude-plugin"
+    if (Test-Path $MarketplaceDest) { Remove-Item -Recurse -Force $MarketplaceDest }
+    Copy-Item -Recurse -Force -Path $MarketplaceSrc -Destination $MarketplaceDest
+  } else {
+    Warn "marketplace.json not found in tarball — plugin registration will need a manual marketplace add."
   }
 
   # ----- PATH update (persistent, user scope) ---------------------------
@@ -158,9 +171,22 @@ try {
     Info "skipping Claude Code plugin registration (HELLODB_SKIP_PLUGIN=1)"
   } elseif (Get-Command claude -ErrorAction SilentlyContinue) {
     Info "registering plugin with Claude Code..."
-    $markRoot = Split-Path $PluginDest -Parent
-    try { claude plugin marketplace add $markRoot 2>&1 | Out-Null } catch { Warn "marketplace add failed: $_" }
-    try { claude plugin install "hellodb@hellodb" 2>&1 | Out-Null; Ok "plugin installed" } catch { Warn "plugin install failed: $_" }
+    # $Home_ is the install root: contains both plugin\ and .claude-plugin\marketplace.json
+    $markRoot = $Home_
+    # Tight presence check: line must be literally "❯ hellodb" (with optional
+    # whitespace), not any substring that happens to contain "hellodb".
+    $existingMarket = (claude plugin marketplace list 2>$null) -match '^\s*❯\s+hellodb\s*$'
+    if (-not $existingMarket) {
+      try { claude plugin marketplace add $markRoot 2>&1 | Out-Null; Ok "marketplace added" } catch { Warn "marketplace add failed: $_" }
+    } else {
+      Ok "marketplace 'hellodb' already registered"
+    }
+    $existingPlugin = (claude plugin list 2>$null) -match '^\s*❯\s+hellodb@hellodb(\s|$)'
+    if (-not $existingPlugin) {
+      try { claude plugin install "hellodb@hellodb" 2>&1 | Out-Null; Ok "plugin installed" } catch { Warn "plugin install failed: $_" }
+    } else {
+      Ok "plugin already installed"
+    }
   } else {
     Warn "Claude Code CLI not found; skipping plugin registration."
     Warn "install Claude Code, then run: claude plugin install hellodb@hellodb"

@@ -1,5 +1,5 @@
 ---
-description: Review pending memory digests produced by hellodb-brain and approve or reject them before they land on main. Use when the user says "review memory", "check digests", "what has brain queued", or invokes /hellodb:hellodb-review.
+description: Review pending memory digests produced by hellodb-brain and approve or reject them before they land on main. Use when the user says "review memory", "check digests", "what has brain queued", or invokes /hellodb:review.
 ---
 
 You are helping the user review pending memory digests produced by the hellodb brain (passive memory pipeline) before they land on the facts main branch. Digest branches are named `{facts_namespace}/digest-{timestamp}` and hold proposed facts waiting for human approval.
