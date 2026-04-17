@@ -3,7 +3,7 @@
 //! Encrypted at-rest storage using the same rusqlite + bundled-sqlcipher
 //! pattern as AINP's ainp-store crate.
 
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use serde_json;
 use std::collections::HashMap;
 
@@ -86,7 +86,16 @@ impl SqliteEngine {
             CREATE INDEX IF NOT EXISTS idx_records_schema ON records(schema_id, branch);
             CREATE INDEX IF NOT EXISTS idx_records_namespace ON records(namespace, branch);
             CREATE INDEX IF NOT EXISTS idx_records_created ON records(created_at_ms);
-            "
+
+            CREATE TABLE IF NOT EXISTS record_metadata (
+                record_id TEXT PRIMARY KEY,
+                score REAL NOT NULL DEFAULT 0.0,
+                reinforce_count INTEGER NOT NULL DEFAULT 0,
+                last_reinforced_at_ms INTEGER NOT NULL DEFAULT 0,
+                first_seen_ms INTEGER NOT NULL,
+                archived_at_ms INTEGER
+            );
+            ",
         )?;
         Ok(())
     }
@@ -119,17 +128,20 @@ impl SqliteEngine {
         let data_json: String = row.get(6)?;
         let signature_b64: String = row.get(8)?;
 
-        let created_by: hellodb_crypto::VerifyingKey =
-            serde_json::from_str(&created_by_b64).map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e))
+        let created_by: hellodb_crypto::VerifyingKey = serde_json::from_str(&created_by_b64)
+            .map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    4,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
             })?;
         let data: serde_json::Value = serde_json::from_str(&data_json).map_err(|e| {
             rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(e))
         })?;
-        let sig: hellodb_crypto::Signature =
-            serde_json::from_str(&signature_b64).map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::new(e))
-            })?;
+        let sig: hellodb_crypto::Signature = serde_json::from_str(&signature_b64).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::new(e))
+        })?;
 
         Ok(Record {
             record_id: row.get(0)?,
@@ -156,7 +168,7 @@ impl SqliteEngine {
             let mut stmt = self.conn.prepare(
                 "SELECT record_id, branch, schema_id, namespace, created_by_b64,
                         created_at_ms, data_json, previous_version, signature_b64, is_tombstone
-                 FROM records WHERE record_id = ?1 AND branch = ?2"
+                 FROM records WHERE record_id = ?1 AND branch = ?2",
             )?;
             let mut rows = stmt.query_map(params![record_id, bid], |row| {
                 let is_tombstone: bool = row.get(9)?;
@@ -203,7 +215,7 @@ impl SqliteEngine {
             let mut stmt = self.conn.prepare(
                 "SELECT record_id, branch, schema_id, namespace, created_by_b64,
                         created_at_ms, data_json, previous_version, signature_b64, is_tombstone
-                 FROM records WHERE branch = ?1 ORDER BY created_at_ms DESC"
+                 FROM records WHERE branch = ?1 ORDER BY created_at_ms DESC",
             )?;
             let rows = stmt.query_map(params![bid], |row| {
                 let record_id: String = row.get(0)?;
@@ -317,7 +329,7 @@ impl StorageEngine for SqliteEngine {
     fn get_namespace(&self, id: &str) -> Result<Option<Namespace>, StorageError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, name, owner_pubkey_b64, description, encrypted, created_at_ms, schemas_json
-             FROM namespaces WHERE id = ?1"
+             FROM namespaces WHERE id = ?1",
         )?;
         let mut rows = stmt.query_map(params![id], |row| {
             let owner_b64: String = row.get(2)?;
@@ -325,10 +337,18 @@ impl StorageEngine for SqliteEngine {
 
             let owner: hellodb_crypto::VerifyingKey =
                 serde_json::from_str(&owner_b64).map_err(|e| {
-                    rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(e))
+                    rusqlite::Error::FromSqlConversionFailure(
+                        2,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
                 })?;
             let schemas: Vec<String> = serde_json::from_str(&schemas_json).map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(e))
+                rusqlite::Error::FromSqlConversionFailure(
+                    6,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
             })?;
 
             Ok(Namespace {
@@ -352,7 +372,7 @@ impl StorageEngine for SqliteEngine {
     fn list_namespaces(&self) -> Result<Vec<Namespace>, StorageError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, name, owner_pubkey_b64, description, encrypted, created_at_ms, schemas_json
-             FROM namespaces ORDER BY created_at_ms"
+             FROM namespaces ORDER BY created_at_ms",
         )?;
         let rows = stmt.query_map([], |row| {
             let owner_b64: String = row.get(2)?;
@@ -360,10 +380,18 @@ impl StorageEngine for SqliteEngine {
 
             let owner: hellodb_crypto::VerifyingKey =
                 serde_json::from_str(&owner_b64).map_err(|e| {
-                    rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(e))
+                    rusqlite::Error::FromSqlConversionFailure(
+                        2,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
                 })?;
             let schemas: Vec<String> = serde_json::from_str(&schemas_json).map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(e))
+                rusqlite::Error::FromSqlConversionFailure(
+                    6,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
             })?;
 
             Ok(Namespace {
@@ -377,7 +405,8 @@ impl StorageEngine for SqliteEngine {
             })
         })?;
 
-        rows.collect::<Result<Vec<_>, _>>().map_err(StorageError::Database)
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::Database)
     }
 
     fn register_schema(&mut self, schema: Schema) -> Result<(), StorageError> {
@@ -412,12 +441,16 @@ impl StorageEngine for SqliteEngine {
     fn get_schema(&self, schema_id: &str) -> Result<Option<Schema>, StorageError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, version, namespace, name, fields_json, registered_at_ms
-             FROM schemas WHERE id = ?1"
+             FROM schemas WHERE id = ?1",
         )?;
         let mut rows = stmt.query_map(params![schema_id], |row| {
             let fields_json: String = row.get(4)?;
             let fields: Vec<SchemaField> = serde_json::from_str(&fields_json).map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e))
+                rusqlite::Error::FromSqlConversionFailure(
+                    4,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
             })?;
 
             Ok(Schema {
@@ -440,12 +473,16 @@ impl StorageEngine for SqliteEngine {
     fn list_schemas(&self, namespace: &str) -> Result<Vec<Schema>, StorageError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, version, namespace, name, fields_json, registered_at_ms
-             FROM schemas WHERE namespace = ?1"
+             FROM schemas WHERE namespace = ?1",
         )?;
         let rows = stmt.query_map(params![namespace], |row| {
             let fields_json: String = row.get(4)?;
             let fields: Vec<SchemaField> = serde_json::from_str(&fields_json).map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e))
+                rusqlite::Error::FromSqlConversionFailure(
+                    4,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
             })?;
 
             Ok(Schema {
@@ -458,7 +495,8 @@ impl StorageEngine for SqliteEngine {
             })
         })?;
 
-        rows.collect::<Result<Vec<_>, _>>().map_err(StorageError::Database)
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::Database)
     }
 
     fn create_branch(&mut self, branch: Branch) -> Result<(), StorageError> {
@@ -483,19 +521,27 @@ impl StorageEngine for SqliteEngine {
     fn get_branch(&self, branch_id: &str) -> Result<Option<Branch>, StorageError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, namespace, parent, state, created_at_ms, label, changes_json
-             FROM branches WHERE id = ?1"
+             FROM branches WHERE id = ?1",
         )?;
         let mut rows = stmt.query_map(params![branch_id], |row| {
             let state_str: String = row.get(3)?;
             let changes_json: String = row.get(6)?;
 
-            let state: BranchState = serde_json::from_str(&format!("\"{}\"", state_str))
-                .map_err(|e| {
-                    rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e))
+            let state: BranchState =
+                serde_json::from_str(&format!("\"{}\"", state_str)).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        3,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
                 })?;
-            let changes: HashMap<RecordId, bool> = serde_json::from_str(&changes_json)
-                .map_err(|e| {
-                    rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(e))
+            let changes: HashMap<RecordId, bool> =
+                serde_json::from_str(&changes_json).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        6,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
                 })?;
 
             Ok(Branch {
@@ -519,19 +565,27 @@ impl StorageEngine for SqliteEngine {
     fn list_branches(&self, namespace: &str) -> Result<Vec<Branch>, StorageError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, namespace, parent, state, created_at_ms, label, changes_json
-             FROM branches WHERE namespace = ?1"
+             FROM branches WHERE namespace = ?1",
         )?;
         let rows = stmt.query_map(params![namespace], |row| {
             let state_str: String = row.get(3)?;
             let changes_json: String = row.get(6)?;
 
-            let state: BranchState = serde_json::from_str(&format!("\"{}\"", state_str))
-                .map_err(|e| {
-                    rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e))
+            let state: BranchState =
+                serde_json::from_str(&format!("\"{}\"", state_str)).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        3,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
                 })?;
-            let changes: HashMap<RecordId, bool> = serde_json::from_str(&changes_json)
-                .map_err(|e| {
-                    rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(e))
+            let changes: HashMap<RecordId, bool> =
+                serde_json::from_str(&changes_json).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        6,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
                 })?;
 
             Ok(Branch {
@@ -545,7 +599,8 @@ impl StorageEngine for SqliteEngine {
             })
         })?;
 
-        rows.collect::<Result<Vec<_>, _>>().map_err(StorageError::Database)
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::Database)
     }
 
     fn merge_branch(&mut self, branch_id: &str) -> Result<MergeResult, StorageError> {
@@ -566,7 +621,9 @@ impl StorageEngine for SqliteEngine {
             .get_branch(parent_id)?
             .ok_or_else(|| StorageError::BranchNotFound(parent_id.clone()))?;
 
-        let merge_result = branch.fast_forward_merge(&parent).map_err(StorageError::Core)?;
+        let merge_result = branch
+            .fast_forward_merge(&parent)
+            .map_err(StorageError::Core)?;
 
         if !merge_result.conflicts.is_empty() {
             return Err(StorageError::MergeConflict(branch_id.to_string()));
@@ -696,5 +753,159 @@ impl StorageEngine for SqliteEngine {
         }
 
         Ok(())
+    }
+
+    fn reinforce_record(
+        &mut self,
+        record_id: &str,
+        delta: f32,
+        now_ms: u64,
+    ) -> Result<crate::engine::RecordMetadata, StorageError> {
+        // UPSERT: create on first call, compose on subsequent calls.
+        self.conn.execute(
+            "INSERT INTO record_metadata (record_id, score, reinforce_count, last_reinforced_at_ms, first_seen_ms)
+             VALUES (?1, ?2, 1, ?3, ?3)
+             ON CONFLICT(record_id) DO UPDATE SET
+                score = record_metadata.score + excluded.score,
+                reinforce_count = record_metadata.reinforce_count + 1,
+                last_reinforced_at_ms = excluded.last_reinforced_at_ms",
+            params![record_id, delta as f64, now_ms as i64],
+        )?;
+
+        // Read back the current state.
+        self.get_record_metadata(record_id)?.ok_or_else(|| {
+            StorageError::Internal("reinforce: metadata missing after upsert".into())
+        })
+    }
+
+    fn get_record_metadata(
+        &self,
+        record_id: &str,
+    ) -> Result<Option<crate::engine::RecordMetadata>, StorageError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT record_id, score, reinforce_count, last_reinforced_at_ms, first_seen_ms, archived_at_ms
+             FROM record_metadata WHERE record_id = ?1",
+        )?;
+        let mut rows = stmt.query_map(params![record_id], |row| {
+            let score: f64 = row.get(1)?;
+            let reinforce_count: i64 = row.get(2)?;
+            let last: i64 = row.get(3)?;
+            let first: i64 = row.get(4)?;
+            let archived: Option<i64> = row.get(5)?;
+            Ok(crate::engine::RecordMetadata {
+                record_id: row.get(0)?,
+                score: score as f32,
+                reinforce_count: reinforce_count as u64,
+                last_reinforced_at_ms: last as u64,
+                first_seen_ms: first as u64,
+                archived_at_ms: archived.map(|v| v as u64),
+            })
+        })?;
+        Ok(rows.next().transpose()?)
+    }
+
+    fn archive_record(&mut self, record_id: &str, now_ms: u64) -> Result<(), StorageError> {
+        // Ensure a metadata row exists (with zero score if never reinforced),
+        // then mark it archived. This lets callers archive records they've
+        // never touched with reinforce, which is useful for the digest pipeline.
+        self.conn.execute(
+            "INSERT INTO record_metadata (record_id, first_seen_ms, archived_at_ms)
+             VALUES (?1, ?2, ?2)
+             ON CONFLICT(record_id) DO UPDATE SET archived_at_ms = excluded.archived_at_ms",
+            params![record_id, now_ms as i64],
+        )?;
+        Ok(())
+    }
+
+    fn tail_records(
+        &self,
+        namespace: &str,
+        after_seq: u64,
+        limit: usize,
+        branch_filter: Option<&str>,
+    ) -> Result<Vec<crate::engine::TailEntry>, StorageError> {
+        // rowid is SQLite's built-in monotonic cursor. For a table without an
+        // INTEGER PRIMARY KEY column, it is automatically assigned as max(rowid)+1
+        // on each INSERT (including INSERT OR REPLACE). It is not reused.
+        //
+        // We exclude tombstones from the tail because the digest/consolidate
+        // pipeline is interested in new information, not deletion events.
+        let base_sql = "SELECT rowid, record_id, branch, schema_id, namespace, created_by_b64,
+                    created_at_ms, data_json, previous_version, signature_b64
+             FROM records
+             WHERE namespace = ?1 AND rowid > ?2 AND is_tombstone = 0";
+
+        let (sql, entries) = match branch_filter {
+            Some(branch) => {
+                let sql = format!("{base_sql} AND branch = ?3 ORDER BY rowid ASC LIMIT ?4");
+                let mut stmt = self.conn.prepare(&sql)?;
+                let rows = stmt
+                    .query_map(
+                        params![namespace, after_seq as i64, branch, limit as i64],
+                        Self::row_to_tail_entry,
+                    )?
+                    .collect::<Result<Vec<_>, _>>()?;
+                (sql, rows)
+            }
+            None => {
+                let sql = format!("{base_sql} ORDER BY rowid ASC LIMIT ?3");
+                let mut stmt = self.conn.prepare(&sql)?;
+                let rows = stmt
+                    .query_map(
+                        params![namespace, after_seq as i64, limit as i64],
+                        Self::row_to_tail_entry,
+                    )?
+                    .collect::<Result<Vec<_>, _>>()?;
+                (sql, rows)
+            }
+        };
+        let _ = sql; // silence unused warning from the shared binding
+        Ok(entries)
+    }
+}
+
+impl SqliteEngine {
+    /// Convert a SELECT rowid,... row into a TailEntry.
+    fn row_to_tail_entry(row: &rusqlite::Row) -> rusqlite::Result<crate::engine::TailEntry> {
+        let seq: i64 = row.get(0)?;
+        let record_id: String = row.get(1)?;
+        let branch: String = row.get(2)?;
+        let schema: String = row.get(3)?;
+        let namespace: String = row.get(4)?;
+        let created_by_b64: String = row.get(5)?;
+        let created_at_ms: u64 = row.get(6)?;
+        let data_json: String = row.get(7)?;
+        let previous_version: Option<String> = row.get(8)?;
+        let signature_b64: String = row.get(9)?;
+
+        let created_by: hellodb_crypto::VerifyingKey = serde_json::from_str(&created_by_b64)
+            .map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    5,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?;
+        let data: serde_json::Value = serde_json::from_str(&data_json).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(7, rusqlite::types::Type::Text, Box::new(e))
+        })?;
+        let sig: hellodb_crypto::Signature = serde_json::from_str(&signature_b64).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(9, rusqlite::types::Type::Text, Box::new(e))
+        })?;
+
+        Ok(crate::engine::TailEntry {
+            seq: seq as u64,
+            branch,
+            record: Record {
+                record_id,
+                schema,
+                namespace,
+                created_by,
+                created_at_ms,
+                data,
+                previous_version,
+                sig,
+            },
+        })
     }
 }

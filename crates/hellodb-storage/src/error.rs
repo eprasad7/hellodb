@@ -37,4 +37,7 @@ pub enum StorageError {
 
     #[error("core error: {0}")]
     Core(#[from] hellodb_core::CoreError),
+
+    #[error("internal invariant violated: {0}")]
+    Internal(String),
 }

@@ -7,8 +7,16 @@ use std::collections::HashMap;
 
 use hellodb_core::*;
 
-use crate::engine::StorageEngine;
+use crate::engine::{RecordMetadata, StorageEngine, TailEntry};
 use crate::error::StorageError;
+
+/// A single entry in the monotonic write log, used to implement tail_records.
+#[derive(Debug, Clone)]
+struct LogEntry {
+    seq: u64,
+    branch: String,
+    record_id: String,
+}
 
 pub struct MemoryEngine {
     namespaces: HashMap<NamespaceId, Namespace>,
@@ -18,6 +26,13 @@ pub struct MemoryEngine {
     records: HashMap<(String, String), Record>,
     /// Tombstones: set of (branch_id, record_id) that have been deleted.
     tombstones: HashMap<String, Vec<String>>,
+    /// Monotonic per-put_record log — seq grows with each call.
+    /// Used by tail_records to let passive observers consume writes.
+    write_log: Vec<LogEntry>,
+    next_seq: u64,
+    /// Per-record reinforcement metadata, keyed by record_id only
+    /// (not branch) — reinforcement is content-level, not instance-level.
+    record_metadata: HashMap<String, RecordMetadata>,
 }
 
 impl MemoryEngine {
@@ -28,15 +43,14 @@ impl MemoryEngine {
             branches: HashMap::new(),
             records: HashMap::new(),
             tombstones: HashMap::new(),
+            write_log: Vec::new(),
+            next_seq: 0,
+            record_metadata: HashMap::new(),
         }
     }
 
     /// Walk up the branch ancestry to find a record.
-    fn find_record_in_ancestry(
-        &self,
-        record_id: &str,
-        branch_id: &str,
-    ) -> Option<Record> {
+    fn find_record_in_ancestry(&self, record_id: &str, branch_id: &str) -> Option<Record> {
         let mut current = Some(branch_id.to_string());
 
         while let Some(bid) = current {
@@ -195,9 +209,9 @@ impl StorageEngine for MemoryEngine {
             .ok_or_else(|| StorageError::BranchNotFound(parent_id.clone()))?
             .clone();
 
-        let merge_result = branch.fast_forward_merge(&parent).map_err(|e| {
-            StorageError::Core(e)
-        })?;
+        let merge_result = branch
+            .fast_forward_merge(&parent)
+            .map_err(|e| StorageError::Core(e))?;
 
         if !merge_result.conflicts.is_empty() {
             return Err(StorageError::MergeConflict(branch_id.to_string()));
@@ -240,12 +254,21 @@ impl StorageEngine for MemoryEngine {
             return Err(StorageError::BranchNotActive(branch.to_string()));
         }
 
-        let key = (branch.to_string(), record.record_id.clone());
+        let record_id = record.record_id.clone();
+        let key = (branch.to_string(), record_id.clone());
         // Track on branch
         if let Some(b) = self.branches.get_mut(branch) {
-            b.add_change(record.record_id.clone());
+            b.add_change(record_id.clone());
         }
         self.records.insert(key, record);
+
+        // Record the write in the monotonic log so tail_records can surface it.
+        self.next_seq += 1;
+        self.write_log.push(LogEntry {
+            seq: self.next_seq,
+            branch: branch.to_string(),
+            record_id,
+        });
         Ok(())
     }
 
@@ -295,7 +318,8 @@ impl StorageEngine for MemoryEngine {
         }
 
         // Remove from this branch's records if present
-        self.records.remove(&(branch.to_string(), record_id.to_string()));
+        self.records
+            .remove(&(branch.to_string(), record_id.to_string()));
 
         // Add tombstone
         self.tombstones
@@ -309,5 +333,85 @@ impl StorageEngine for MemoryEngine {
         }
 
         Ok(())
+    }
+
+    fn reinforce_record(
+        &mut self,
+        record_id: &str,
+        delta: f32,
+        now_ms: u64,
+    ) -> Result<RecordMetadata, StorageError> {
+        let entry = self
+            .record_metadata
+            .entry(record_id.to_string())
+            .or_insert_with(|| RecordMetadata {
+                record_id: record_id.to_string(),
+                score: 0.0,
+                reinforce_count: 0,
+                last_reinforced_at_ms: now_ms,
+                first_seen_ms: now_ms,
+                archived_at_ms: None,
+            });
+        entry.score += delta;
+        entry.reinforce_count += 1;
+        entry.last_reinforced_at_ms = now_ms;
+        Ok(entry.clone())
+    }
+
+    fn get_record_metadata(&self, record_id: &str) -> Result<Option<RecordMetadata>, StorageError> {
+        Ok(self.record_metadata.get(record_id).cloned())
+    }
+
+    fn archive_record(&mut self, record_id: &str, now_ms: u64) -> Result<(), StorageError> {
+        let entry = self
+            .record_metadata
+            .entry(record_id.to_string())
+            .or_insert_with(|| RecordMetadata {
+                record_id: record_id.to_string(),
+                score: 0.0,
+                reinforce_count: 0,
+                last_reinforced_at_ms: 0,
+                first_seen_ms: now_ms,
+                archived_at_ms: None,
+            });
+        entry.archived_at_ms = Some(now_ms);
+        Ok(())
+    }
+
+    fn tail_records(
+        &self,
+        namespace: &str,
+        after_seq: u64,
+        limit: usize,
+        branch_filter: Option<&str>,
+    ) -> Result<Vec<TailEntry>, StorageError> {
+        let mut out = Vec::new();
+        for entry in &self.write_log {
+            if entry.seq <= after_seq {
+                continue;
+            }
+            if let Some(b) = branch_filter {
+                if entry.branch != b {
+                    continue;
+                }
+            }
+            // Resolve record by (branch, record_id) and filter by namespace.
+            let key = (entry.branch.clone(), entry.record_id.clone());
+            let Some(record) = self.records.get(&key) else {
+                continue; // record no longer present (e.g. tombstoned)
+            };
+            if record.namespace != namespace {
+                continue;
+            }
+            out.push(TailEntry {
+                seq: entry.seq,
+                branch: entry.branch.clone(),
+                record: record.clone(),
+            });
+            if out.len() >= limit {
+                break;
+            }
+        }
+        Ok(out)
     }
 }

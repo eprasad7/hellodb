@@ -4,15 +4,15 @@
 //! Includes a write-ahead log for crash recovery.
 
 pub mod engine;
+pub mod error;
 pub mod memory;
 pub mod sqlite;
 pub mod wal;
-pub mod error;
 
-pub use engine::StorageEngine;
+pub use engine::{decayed_score, RecordMetadata, StorageEngine, TailEntry};
+pub use error::StorageError;
 pub use memory::MemoryEngine;
 pub use sqlite::SqliteEngine;
-pub use error::StorageError;
 
 #[cfg(test)]
 mod tests {
@@ -42,28 +42,24 @@ mod tests {
             version: "1.0.0".into(),
             namespace: ns.into(),
             name: "Test Schema".into(),
-            fields: vec![
-                SchemaField {
-                    name: "title".into(),
-                    field_type: FieldType::String,
-                    required: true,
-                    description: None,
-                },
-            ],
+            fields: vec![SchemaField {
+                name: "title".into(),
+                field_type: FieldType::String,
+                required: true,
+                description: None,
+            }],
             registered_at_ms: 2000,
         }
     }
 
-    fn make_record(kp: &KeyPair, schema: &str, ns: &str, data: serde_json::Value, ts: u64) -> Record {
-        Record::new_with_timestamp(
-            &kp.signing,
-            schema.into(),
-            ns.into(),
-            data,
-            None,
-            ts,
-        )
-        .unwrap()
+    fn make_record(
+        kp: &KeyPair,
+        schema: &str,
+        ns: &str,
+        data: serde_json::Value,
+        ts: u64,
+    ) -> Record {
+        Record::new_with_timestamp(&kp.signing, schema.into(), ns.into(), data, None, ts).unwrap()
     }
 
     /// Run the full test suite against a StorageEngine implementation.
@@ -139,17 +135,33 @@ mod tests {
         assert!(!engine.has_record(&rec2_id, &main_branch).unwrap()); // not on main yet
 
         // --- List and count ---
-        let main_records = engine.list_records_by_schema(schema_id, &main_branch, 100, 0).unwrap();
+        let main_records = engine
+            .list_records_by_schema(schema_id, &main_branch, 100, 0)
+            .unwrap();
         assert_eq!(main_records.len(), 1);
 
-        let child_records = engine.list_records_by_schema(schema_id, &child_branch, 100, 0).unwrap();
+        let child_records = engine
+            .list_records_by_schema(schema_id, &child_branch, 100, 0)
+            .unwrap();
         assert_eq!(child_records.len(), 2); // rec1 (inherited) + rec2
 
-        assert_eq!(engine.count_records_by_schema(schema_id, &main_branch).unwrap(), 1);
-        assert_eq!(engine.count_records_by_schema(schema_id, &child_branch).unwrap(), 2);
+        assert_eq!(
+            engine
+                .count_records_by_schema(schema_id, &main_branch)
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            engine
+                .count_records_by_schema(schema_id, &child_branch)
+                .unwrap(),
+            2
+        );
 
         // --- List by namespace ---
-        let ns_records = engine.list_records_by_namespace(ns_id, &child_branch, 100, 0).unwrap();
+        let ns_records = engine
+            .list_records_by_namespace(ns_id, &child_branch, 100, 0)
+            .unwrap();
         assert_eq!(ns_records.len(), 2);
 
         // --- Delete (tombstone) ---
@@ -157,7 +169,9 @@ mod tests {
         assert!(!engine.has_record(&rec1_id, &child_branch).unwrap()); // deleted on child
         assert!(engine.has_record(&rec1_id, &main_branch).unwrap()); // still on main
 
-        let child_after_delete = engine.list_records_by_schema(schema_id, &child_branch, 100, 0).unwrap();
+        let child_after_delete = engine
+            .list_records_by_schema(schema_id, &child_branch, 100, 0)
+            .unwrap();
         assert_eq!(child_after_delete.len(), 1); // only rec2
 
         // --- Merge ---
@@ -195,8 +209,10 @@ mod tests {
         let _rec4_id = rec4.record_id.clone();
         engine.put_record(rec4.clone(), &main_branch).unwrap();
         engine.put_record(rec4, &main_branch).unwrap(); // duplicate
-        // Should still only have one copy
-        let count = engine.count_records_by_schema(schema_id, &main_branch).unwrap();
+                                                        // Should still only have one copy
+        let count = engine
+            .count_records_by_schema(schema_id, &main_branch)
+            .unwrap();
         // rec1 + rec3 (merged) + rec4 = 3
         assert_eq!(count, 3);
     }
