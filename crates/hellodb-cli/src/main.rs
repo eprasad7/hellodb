@@ -63,7 +63,8 @@ fn print_help() {
     println!("  status     show identity, namespaces, record counts, brain state");
     println!("  recall     top facts ranked by decayed score (markdown or json)");
     println!("             flags: --top N (default 8), --namespace NS (default claude.facts),");
-    println!("                    --format md|json (default md), --half-life-days D (default 7)");
+    println!("                    --format md|json (default md), --half-life-days D (default 7),");
+    println!("                    --verbose (show errors on stderr; default is silent)");
     println!("  mcp        run the MCP server (stdio transport; for Claude Code)");
     println!("  brain      run one passive-memory digest pass (see --help for flags)");
     println!("  doctor     diagnose common setup issues");
@@ -257,7 +258,11 @@ fn cmd_recall(args: &[String]) -> Result<i32, String> {
     let mut namespace = "claude.facts".to_string();
     let mut format = "md".to_string();
     let mut half_life_days: f64 = 7.0;
-    let mut quiet = false;
+    // Default to quiet because this command is designed to be wired into
+    // hooks and sub-agent pipelines — stderr noise during session bootstrap
+    // would be visible to the user. Opt into chatty mode with --verbose when
+    // debugging from the terminal.
+    let mut quiet = true;
 
     let mut i = 0;
     while i < args.len() {
@@ -280,6 +285,10 @@ fn cmd_recall(args: &[String]) -> Result<i32, String> {
             }
             "--quiet" => {
                 quiet = true;
+                i += 1;
+            }
+            "--verbose" | "-v" => {
+                quiet = false;
                 i += 1;
             }
             other => {

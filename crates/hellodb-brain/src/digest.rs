@@ -90,9 +90,14 @@ impl DigestBackend for MockBackend {
                     })
                     .and_then(|v| v.as_str())
                     .map(|s| {
-                        // Trim long text to 120 chars for readability
-                        if s.len() > 120 {
-                            format!("{}…", &s[..120])
+                        // Trim long text to 120 chars for readability. `s.len()` is BYTES,
+                        // and `&s[..120]` panics if byte 120 lands inside a multi-byte
+                        // UTF-8 boundary (common with non-ASCII episode text). Truncate
+                        // on character boundaries instead.
+                        let char_count = s.chars().count();
+                        if char_count > 120 {
+                            let head: String = s.chars().take(120).collect();
+                            format!("{head}…")
                         } else {
                             s.to_string()
                         }
