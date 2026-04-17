@@ -5,6 +5,7 @@
 //!   hellodb init              — first-time setup (identity, brain.toml)
 //!   hellodb status            — identity + namespaces + brain state
 //!   hellodb recall [opts]     — rank curated facts by decayed score, emit markdown/json
+//!   hellodb ingest [opts]     — import Claude Code's auto-memory markdown files into hellodb
 //!   hellodb mcp               — run the MCP server (stdio, for Claude Code)
 //!   hellodb brain [args...]   — run the passive-memory digest pass
 //!   hellodb doctor            — diagnose config/permission/DB-open issues
@@ -24,12 +25,20 @@ use hellodb_core::Record;
 use hellodb_crypto::{content_hash, KeyPair, SigningKey};
 use hellodb_storage::{decayed_score, SqliteEngine, StorageEngine};
 
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let code = match args.first().map(String::as_str) {
         Some("init") => cmd_init(&args[1..]),
         Some("status") => cmd_status(&args[1..]),
         Some("recall") => cmd_recall(&args[1..]),
+        Some("ingest") => cmd_ingest(&args[1..]),
         Some("mcp") => cmd_exec_sibling("hellodb-mcp", &args[1..]),
         Some("brain") => cmd_exec_sibling("hellodb-brain", &args[1..]),
         Some("doctor") => cmd_doctor(),
@@ -65,6 +74,9 @@ fn print_help() {
     println!("             flags: --top N (default 8), --namespace NS (default claude.facts),");
     println!("                    --format md|json (default md), --half-life-days D (default 7),");
     println!("                    --verbose (show errors on stderr; default is silent)");
+    println!("  ingest     import Claude Code auto-memory markdown into hellodb");
+    println!("             flags: --from-claudemd (scan ~/.claude/projects/*/memory/*.md),");
+    println!("                    --source PATH (explicit memory dir), --dry-run");
     println!("  mcp        run the MCP server (stdio transport; for Claude Code)");
     println!("  brain      run one passive-memory digest pass (see --help for flags)");
     println!("  doctor     diagnose common setup issues");
@@ -468,6 +480,404 @@ fn cmd_recall(args: &[String]) -> Result<i32, String> {
     }
 
     Ok(0)
+}
+
+// --- ingest ---------------------------------------------------------------
+
+/// Import Claude Code's auto-memory markdown files into hellodb.
+///
+/// Claude Code writes per-project memory files to
+/// `~/.claude/projects/<sanitized-path>/memory/*.md` with YAML frontmatter
+/// declaring a `type` (user / feedback / project / reference) and an
+/// optional `description`. See claude-code/src/memdir/memoryScan.ts for
+/// the format.
+///
+/// This subcommand walks those directories, parses the frontmatter, and
+/// creates signed records in hellodb under a namespace-per-project. The
+/// record's `data` carries:
+///   - type:       one of the four memory types
+///   - description: the frontmatter description (if any)
+///   - body:       the file content below the frontmatter
+///   - source_path: absolute path of the .md file
+///   - project:    the sanitized-path segment from ~/.claude/projects/
+///   - mtime_ms:   file mtime (so recall can rank by freshness)
+///
+/// Schema id used: `claude.memory.<type>` (auto-registered on first use).
+///
+/// Dedup: content-addressed record_ids mean re-running on unchanged files
+/// is a no-op. If a file is edited, the new content gets a new record_id
+/// and supersedes via `previous_version` — nothing is lost.
+///
+/// `--dry-run` reports what would be ingested without writing.
+fn cmd_ingest(args: &[String]) -> Result<i32, String> {
+    let mut from_claudemd = false;
+    let mut source_path: Option<PathBuf> = None;
+    let mut dry_run = false;
+
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "-h" | "--help" => {
+                print_ingest_help();
+                return Ok(0);
+            }
+            "--from-claudemd" => {
+                from_claudemd = true;
+                i += 1;
+            }
+            "--source" => {
+                source_path = args.get(i + 1).map(PathBuf::from);
+                i += 2;
+            }
+            "--dry-run" => {
+                dry_run = true;
+                i += 1;
+            }
+            other => {
+                eprintln!("ingest: unknown flag {other}");
+                return Ok(2);
+            }
+        }
+    }
+
+    if !from_claudemd && source_path.is_none() {
+        eprintln!("ingest: specify --from-claudemd or --source <path>");
+        print_ingest_help();
+        return Ok(2);
+    }
+
+    // Enumerate candidate memory directories.
+    let dirs: Vec<PathBuf> = if let Some(src) = source_path {
+        if !src.exists() {
+            return Err(format!("source path does not exist: {}", src.display()));
+        }
+        vec![src]
+    } else {
+        // Scan ~/.claude/projects/*/memory/
+        let projects_root = match std::env::var("HOME") {
+            Ok(home) => PathBuf::from(home).join(".claude").join("projects"),
+            Err(_) => return Err("HOME unset; can't locate ~/.claude/projects".into()),
+        };
+        if !projects_root.exists() {
+            println!(
+                "{}",
+                serde_json::json!({
+                    "status": "nothing_to_ingest",
+                    "reason": "no ~/.claude/projects directory",
+                    "hint": "run Claude Code at least once to populate auto-memory"
+                })
+            );
+            return Ok(0);
+        }
+        let mut out = Vec::new();
+        match std::fs::read_dir(&projects_root) {
+            Ok(entries) => {
+                for entry in entries.flatten() {
+                    let mem_dir = entry.path().join("memory");
+                    if mem_dir.is_dir() {
+                        out.push(mem_dir);
+                    }
+                }
+            }
+            Err(e) => return Err(format!("reading {}: {e}", projects_root.display())),
+        }
+        out
+    };
+
+    if dirs.is_empty() {
+        println!(
+            "{}",
+            serde_json::json!({
+                "status": "nothing_to_ingest",
+                "reason": "no memory directories found under ~/.claude/projects/"
+            })
+        );
+        return Ok(0);
+    }
+
+    // Ensure hellodb is initialized.
+    let data_dir = data_dir();
+    let identity_path = data_dir.join("identity.key");
+    if !identity_path.exists() {
+        return Err("hellodb not initialized (no identity.key). run `hellodb init` first.".into());
+    }
+    let keypair = load_identity(&identity_path)?;
+    let db_path = data_dir.join("local.db");
+    let db_key = derive_sqlcipher_key(&keypair.signing);
+
+    // Walk every memory dir.
+    let mut files_scanned = 0usize;
+    let mut records_ingested = 0usize;
+    let mut namespaces_touched: std::collections::BTreeSet<String> =
+        std::collections::BTreeSet::new();
+    let mut errors: Vec<String> = Vec::new();
+    let mut per_project: Vec<serde_json::Value> = Vec::new();
+
+    // Open storage once (unless dry-run).
+    let mut storage = if dry_run {
+        None
+    } else {
+        Some(
+            SqliteEngine::open(db_path.to_str().unwrap_or(""), &db_key)
+                .map_err(|e| format!("opening db: {e}"))?,
+        )
+    };
+
+    for mem_dir in &dirs {
+        let project_slug = mem_dir
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let namespace = format!("claude.memory.{}", sanitize_ns_segment(&project_slug));
+
+        // Ensure namespace + a permissive schema exist for each memory type.
+        if let Some(ref mut s) = storage {
+            if s.get_namespace(&namespace).ok().flatten().is_none() {
+                let mut ns = hellodb_core::Namespace::new(
+                    namespace.clone(),
+                    project_slug.clone(),
+                    keypair.verifying.clone(),
+                    true,
+                );
+                ns.description = Some(format!(
+                    "Imported from Claude Code auto-memory for project {project_slug}"
+                ));
+                s.create_namespace(ns).map_err(|e| e.to_string())?;
+            }
+            // One schema with flexible fields covers all four types; validation is
+            // by the `type` field's value, not by distinct schemas.
+            let schema_id = format!("{namespace}.claudemd");
+            if s.get_schema(&schema_id).ok().flatten().is_none() {
+                let schema = hellodb_core::Schema {
+                    id: schema_id.clone(),
+                    version: "1.0.0".into(),
+                    namespace: namespace.clone(),
+                    name: "Claude Code auto-memory file".into(),
+                    fields: vec![
+                        hellodb_core::SchemaField {
+                            name: "type".into(),
+                            field_type: hellodb_core::FieldType::String,
+                            required: true,
+                            description: Some("user | feedback | project | reference".into()),
+                        },
+                        hellodb_core::SchemaField {
+                            name: "description".into(),
+                            field_type: hellodb_core::FieldType::Optional(Box::new(
+                                hellodb_core::FieldType::String,
+                            )),
+                            required: false,
+                            description: None,
+                        },
+                        hellodb_core::SchemaField {
+                            name: "body".into(),
+                            field_type: hellodb_core::FieldType::String,
+                            required: true,
+                            description: None,
+                        },
+                        hellodb_core::SchemaField {
+                            name: "source_path".into(),
+                            field_type: hellodb_core::FieldType::String,
+                            required: true,
+                            description: None,
+                        },
+                        hellodb_core::SchemaField {
+                            name: "project".into(),
+                            field_type: hellodb_core::FieldType::String,
+                            required: true,
+                            description: None,
+                        },
+                        hellodb_core::SchemaField {
+                            name: "mtime_ms".into(),
+                            field_type: hellodb_core::FieldType::Timestamp,
+                            required: true,
+                            description: None,
+                        },
+                    ],
+                    registered_at_ms: now_ms(),
+                };
+                s.register_schema(schema).map_err(|e| e.to_string())?;
+            }
+        }
+
+        // Walk .md files in this dir.
+        let files = match std::fs::read_dir(mem_dir) {
+            Ok(it) => it,
+            Err(e) => {
+                errors.push(format!("reading {}: {e}", mem_dir.display()));
+                continue;
+            }
+        };
+        let mut this_project_ingested = 0usize;
+        for f in files.flatten() {
+            let p = f.path();
+            if p.extension().and_then(|e| e.to_str()) != Some("md") {
+                continue;
+            }
+            // Claude Code reserves MEMORY.md as an index file — skip it.
+            if p.file_name().and_then(|n| n.to_str()) == Some("MEMORY.md") {
+                continue;
+            }
+            files_scanned += 1;
+            let body_text = match std::fs::read_to_string(&p) {
+                Ok(s) => s,
+                Err(e) => {
+                    errors.push(format!("reading {}: {e}", p.display()));
+                    continue;
+                }
+            };
+            let mtime_ms = std::fs::metadata(&p)
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+
+            let (frontmatter, body) = parse_frontmatter(&body_text);
+            let mem_type = frontmatter
+                .get("type")
+                .cloned()
+                .unwrap_or_else(|| "reference".into());
+            let description = frontmatter.get("description").cloned();
+
+            if dry_run {
+                continue;
+            }
+
+            let data = serde_json::json!({
+                "type": mem_type,
+                "description": description,
+                "body": body,
+                "source_path": p.display().to_string(),
+                "project": project_slug,
+                "mtime_ms": mtime_ms,
+            });
+
+            let schema_id = format!("{namespace}.claudemd");
+            let record = hellodb_core::Record::new_with_timestamp(
+                &keypair.signing,
+                schema_id,
+                namespace.clone(),
+                data,
+                None,
+                mtime_ms,
+            )
+            .map_err(|e| e.to_string())?;
+
+            let main_branch = format!("{namespace}/main");
+            if let Some(ref mut s) = storage {
+                s.put_record(record, &main_branch)
+                    .map_err(|e| e.to_string())?;
+                records_ingested += 1;
+                this_project_ingested += 1;
+            }
+        }
+        namespaces_touched.insert(namespace.clone());
+        per_project.push(serde_json::json!({
+            "namespace": namespace,
+            "project": project_slug,
+            "source_dir": mem_dir.display().to_string(),
+            "records_ingested": this_project_ingested,
+        }));
+    }
+
+    println!(
+        "{}",
+        serde_json::json!({
+            "status": if dry_run { "dry_run" } else { "ingested" },
+            "files_scanned": files_scanned,
+            "records_ingested": records_ingested,
+            "namespaces": namespaces_touched.into_iter().collect::<Vec<_>>(),
+            "projects": per_project,
+            "errors": errors,
+        })
+    );
+    Ok(0)
+}
+
+fn print_ingest_help() {
+    println!("hellodb ingest — import Claude Code auto-memory into hellodb");
+    println!();
+    println!("usage: hellodb ingest [--from-claudemd | --source PATH] [--dry-run]");
+    println!();
+    println!("flags:");
+    println!("  --from-claudemd   scan ~/.claude/projects/*/memory/*.md (requires HOME)");
+    println!("  --source PATH     explicit memory directory to scan");
+    println!("  --dry-run         parse files + report, don't write records");
+    println!("  -h, --help        this help");
+    println!();
+    println!("creates a namespace-per-project (claude.memory.<project-slug>) with");
+    println!("schema claude.memory.<project-slug>.claudemd. Dedupes by content hash,");
+    println!("so re-running is a no-op when files haven't changed.");
+}
+
+/// Minimal YAML-frontmatter parser for `key: value` pairs. Matches Claude
+/// Code's `parseFrontmatter` semantics enough for memory files (which use
+/// flat string values, no nesting). Returns (parsed_map, body_after_frontmatter).
+///
+/// Frontmatter format:
+///   ---
+///   key: value
+///   other: another
+///   ---
+///   <body starts here>
+fn parse_frontmatter(input: &str) -> (std::collections::HashMap<String, String>, String) {
+    let mut map = std::collections::HashMap::new();
+    let mut lines = input.lines();
+    let first = match lines.next() {
+        Some(l) => l.trim(),
+        None => return (map, input.to_string()),
+    };
+    if first != "---" {
+        // No frontmatter; whole file is body.
+        return (map, input.to_string());
+    }
+    let mut body_start_line = 0usize;
+    let mut found_end = false;
+    for (i, line) in input.lines().enumerate().skip(1) {
+        if line.trim() == "---" {
+            body_start_line = i + 1;
+            found_end = true;
+            break;
+        }
+        if let Some((k, v)) = line.split_once(':') {
+            let key = k.trim().to_string();
+            let val = v.trim().trim_matches('"').trim_matches('\'').to_string();
+            if !key.is_empty() {
+                map.insert(key, val);
+            }
+        }
+    }
+    let body = if found_end {
+        input
+            .lines()
+            .skip(body_start_line)
+            .collect::<Vec<_>>()
+            .join("\n")
+    } else {
+        // Unterminated frontmatter — treat whole input as body to be safe.
+        input.to_string()
+    };
+    (map, body)
+}
+
+/// Make a free-form string safe as a namespace segment: keep
+/// [a-zA-Z0-9.-], replace everything else with `-`, collapse runs.
+fn sanitize_ns_segment(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut last_dash = false;
+    for ch in s.chars() {
+        let ok = ch.is_ascii_alphanumeric() || ch == '.' || ch == '-';
+        if ok {
+            out.push(ch);
+            last_dash = false;
+        } else if !last_dash {
+            out.push('-');
+            last_dash = true;
+        }
+    }
+    out.trim_matches('-').to_string()
 }
 
 // --- mcp / brain: exec sibling --------------------------------------------

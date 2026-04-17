@@ -103,6 +103,7 @@ impl Server {
             "hellodb_embed" => self.tool_embed(args),
             "hellodb_embed_and_search" => self.tool_embed_and_search(args),
             "hellodb_ingest_text" => self.tool_ingest_text(args),
+            "hellodb_find_relevant_memories" => self.tool_find_relevant_memories(args),
             other => Err(format!("unknown tool: {other}")),
         };
 
@@ -716,6 +717,225 @@ impl Server {
             }
         }))
     }
+
+    /// Claude Code-shaped memory retrieval. Intentionally distinct from
+    /// `hellodb_embed_and_search`:
+    ///   - operates on the `claude.memory.*` record shape (type/description/body)
+    ///   - returns a flat memory-manifest: one row per memory file
+    ///   - filters by memory `type` (user | feedback | project | reference)
+    ///   - gracefully degrades when no embedder is configured → keyword
+    ///     overlap + reinforcement decay, so it always returns *something*
+    ///
+    /// This is what a "load top-N relevant memories at turn start" hook
+    /// calls. The embed_and_search tool stays around for generic semantic
+    /// recall over any namespace; this one speaks the Claude Code memory
+    /// dialect directly.
+    fn tool_find_relevant_memories(&self, args: Value) -> Result<Value, String> {
+        let namespace = require_string(&args, "namespace")?;
+        let branch = branch_or_default(&args, &namespace);
+        let top_k = args
+            .get("top_k")
+            .and_then(Value::as_u64)
+            .map(|n| n as usize)
+            .unwrap_or(5);
+        let query_text = args
+            .get("query_text")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let types_filter: Option<Vec<String>> =
+            args.get("types").and_then(Value::as_array).map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect()
+            });
+        let half_life_ms = args
+            .get("half_life_days")
+            .and_then(Value::as_f64)
+            .map(|d| (d * 86_400_000.0) as u64)
+            .unwrap_or_else(default_half_life_ms);
+
+        // Try the vector path first: only when the caller gave us query_text
+        // AND the embedder env is configured. Any failure here (no embedder,
+        // empty index, dim mismatch) falls through to the keyword path rather
+        // than erroring — retrieval should degrade gracefully, not refuse.
+        let mut used_strategy = "keyword+decay";
+        let mut vector_hits: Vec<(String, f32)> = Vec::new();
+        if let Some(ref qt) = query_text {
+            if let Ok(embedder) = build_embedder_from_env() {
+                if let Ok(embedding) = embedder.embed_one(qt) {
+                    if let Ok(index) = self.open_vector_index(&namespace) {
+                        if !index.is_empty() {
+                            // Ask for more hits than top_k so type-filtering
+                            // still has material to work with.
+                            let wanted = (top_k * 4).max(20);
+                            if let Ok(hits) = index.search(&embedding, wanted) {
+                                vector_hits =
+                                    hits.into_iter().map(|h| (h.record_id, h.score)).collect();
+                                if !vector_hits.is_empty() {
+                                    used_strategy = "vector+decay";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let storage = self.storage.lock().unwrap();
+        let now = now_ms();
+
+        // Collect candidate records. In vector mode, fetch just the hit ids.
+        // In keyword mode, scan the namespace on the target branch (bounded
+        // by QueryEngine's default limit — fine for memory files, which are
+        // dozens, not millions, per project).
+        let candidates: Vec<(Record, Option<f32>)> = if used_strategy == "vector+decay" {
+            let mut out = Vec::with_capacity(vector_hits.len());
+            for (rid, sim) in &vector_hits {
+                if let Ok(Some(r)) = storage.get_record(rid, &branch) {
+                    out.push((r, Some(*sim)));
+                }
+            }
+            out
+        } else {
+            let q = Query::new().namespace(namespace.clone()).limit(1000);
+            let engine = QueryEngine::new(&*storage, &self.access);
+            let result = engine
+                .execute(&q, &self.identity.verifying, &branch, now)
+                .map_err(|e| e.to_string())?;
+            result.records.into_iter().map(|r| (r, None)).collect()
+        };
+
+        // Lowercase tokenized query for keyword overlap scoring. Crude but
+        // good enough when there's no embedder — splits on non-alphanumeric,
+        // drops tokens shorter than 3 chars (noise).
+        let query_tokens: Vec<String> = query_text
+            .as_deref()
+            .map(|q| {
+                q.to_lowercase()
+                    .split(|c: char| !c.is_alphanumeric())
+                    .filter(|t| t.len() >= 3)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let mut scored: Vec<(f32, Value)> = Vec::with_capacity(candidates.len());
+        for (record, similarity) in candidates {
+            // Apply type filter BEFORE scoring — skip records whose
+            // `data.type` isn't in the allowlist when one is provided.
+            let mem_type = record
+                .data
+                .get("type")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            if let Some(ref allow) = types_filter {
+                if !allow.iter().any(|t| t == &mem_type) {
+                    continue;
+                }
+            }
+
+            let description = record
+                .data
+                .get("description")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            let body = record
+                .data
+                .get("body")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            let source_path = record
+                .data
+                .get("source_path")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            let project = record
+                .data
+                .get("project")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            let mtime_ms = record.data.get("mtime_ms").and_then(Value::as_u64);
+
+            // Decayed reinforcement score — flat 0 if the record was never
+            // reinforced. The +1 keeps un-reinforced records competitive
+            // rather than zeroing them out entirely.
+            let decayed = storage
+                .get_record_metadata(&record.record_id)
+                .ok()
+                .flatten()
+                .map(|m| decayed_score(&m, now, half_life_ms))
+                .unwrap_or(0.0);
+
+            // Keyword overlap: fraction of query tokens present in the
+            // haystack (description + body). Cheap and deterministic.
+            let keyword_score = if query_tokens.is_empty() {
+                0.0
+            } else {
+                let hay = format!("{description} {body}").to_lowercase();
+                let hits = query_tokens
+                    .iter()
+                    .filter(|t| hay.contains(t.as_str()))
+                    .count();
+                hits as f32 / query_tokens.len() as f32
+            };
+
+            // Final score composition:
+            //   - vector mode: similarity * (1 + decay)
+            //   - keyword mode: (keyword_score + 0.1) * (1 + decay)
+            //     (the 0.1 offset keeps recall from collapsing to zero
+            //     when the caller passed no query_text)
+            let final_score = match similarity {
+                Some(sim) => sim * (1.0 + decayed.clamp(0.0, 10.0)),
+                None => (keyword_score + 0.1) * (1.0 + decayed.clamp(0.0, 10.0)),
+            };
+
+            // Pick a "statement" — the one-line summary a caller actually
+            // wants to show in a top-N list. Prefer description; fall back
+            // to the body's first non-empty line; finally, source_path.
+            let statement = if !description.is_empty() {
+                description.clone()
+            } else {
+                body.lines()
+                    .map(str::trim)
+                    .find(|l| !l.is_empty())
+                    .map(str::to_string)
+                    .unwrap_or_else(|| source_path.clone().unwrap_or_default())
+            };
+
+            let mut item = json!({
+                "record_id": record.record_id,
+                "type": mem_type,
+                "description": description,
+                "statement": statement,
+                "source_path": source_path,
+                "project": project,
+                "mtime_ms": mtime_ms,
+                "decayed_score": decayed,
+                "final_score": final_score,
+                "keyword_score": keyword_score,
+            });
+            if let Some(sim) = similarity {
+                item["similarity"] = json!(sim);
+            }
+            scored.push((final_score, item));
+        }
+
+        scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+        let memories: Vec<Value> = scored.into_iter().take(top_k).map(|(_, v)| v).collect();
+
+        Ok(json!({
+            "memories": memories,
+            "namespace": namespace,
+            "branch": branch,
+            "strategy": used_strategy,
+            "top_k": top_k,
+            "query_text": query_text,
+            "types_filter": types_filter,
+        }))
+    }
 }
 
 // --- Helpers ---------------------------------------------------------------
@@ -1193,6 +1413,26 @@ fn tool_catalog() -> Vec<ToolDef> {
                     "namespace": { "type": "string" },
                     "record_id": { "type": "string" },
                     "text": { "type": "string" }
+                }
+            }),
+        },
+        ToolDef {
+            name: "hellodb_find_relevant_memories",
+            description: "Return the top-k relevant Claude Code memory files in a namespace. Mirrors Claude Code's memory-manifest retrieval: each hit carries type (user|feedback|project|reference), description, statement, source_path, project, mtime_ms, plus decayed_score and final_score. Hybrid ranking: if an embedder is configured (HELLODB_EMBED_BACKEND) and `query_text` is provided, uses vector similarity; otherwise falls back to keyword overlap + reinforcement decay. Always degrades gracefully — never errors for 'no embedder', just returns the best keyword+decay ranking available. Populated by `hellodb ingest --from-claudemd` or manual writes to a claude.memory.* namespace.",
+            input_schema: json!({
+                "type": "object",
+                "required": ["namespace"],
+                "properties": {
+                    "namespace": { "type": "string", "description": "e.g. 'claude.memory.hellodb' — the per-project namespace populated by `hellodb ingest`" },
+                    "query_text": { "type": "string", "description": "Free-form query. If a vector embedder is configured, used for semantic similarity; otherwise tokenized for keyword overlap scoring." },
+                    "top_k": { "type": "integer", "default": 5 },
+                    "types": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Optional allowlist of Claude memory types to include: user | feedback | project | reference"
+                    },
+                    "branch": { "type": "string", "description": "Default: {namespace}/main" },
+                    "half_life_days": { "type": "number", "default": 7.0 }
                 }
             }),
         },
