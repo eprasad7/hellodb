@@ -86,12 +86,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14            # Apple Silicon
+          - os: macos-14            # Apple Silicon (covers 100% of Apple hardware sold since 2020)
             target: aarch64-apple-darwin
             exe_suffix: ""
-          - os: macos-13            # Intel Mac
-            target: x86_64-apple-darwin
-            exe_suffix: ""
+          # Intel Mac (x86_64-apple-darwin) intentionally dropped:
+          # macos-13 runners are scarce and block release assembly for
+          # hours. Apple has shipped Apple Silicon exclusively since late
+          # 2020; Intel users are a shrinking minority and can build
+          # from source or install via Homebrew.
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             exe_suffix: ""

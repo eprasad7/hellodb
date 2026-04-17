@@ -39,7 +39,12 @@ OS="$(uname -s)"
 ARCH="$(uname -m)"
 case "$OS-$ARCH" in
   Darwin-arm64|Darwin-aarch64)   TARGET="aarch64-apple-darwin" ;;
-  Darwin-x86_64)                 TARGET="x86_64-apple-darwin" ;;
+  Darwin-x86_64)
+    err "Intel Mac (x86_64) not supported by prebuilt tarballs — Apple Silicon only.
+    build from source instead:
+      git clone https://github.com/$REPO && cd hellodb && make build
+    or run under Rosetta 2 if you have an aarch64 shell."
+    ;;
   Linux-x86_64)                  TARGET="x86_64-unknown-linux-gnu" ;;
   Linux-aarch64|Linux-arm64)     TARGET="aarch64-unknown-linux-gnu" ;;
   *) err "unsupported platform: $OS-$ARCH. open an issue at https://github.com/$REPO/issues." ;;
