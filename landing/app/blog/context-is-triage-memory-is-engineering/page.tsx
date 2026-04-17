@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Nav } from "@/components/site/nav";
 import { Footer } from "@/components/site/footer";
+import { ContextVsMemory } from "@/components/site/context-vs-memory";
 
 const TITLE = "Context is triage. Memory is engineering.";
 const DESCRIPTION =
@@ -92,6 +93,8 @@ export default function Post() {
                 solution.
               </p>
             </Section>
+
+            <ContextVsMemory />
 
             <Section>
               <H2>Problem 1 &mdash; context rot</H2>

@@ -91,29 +91,35 @@
 
 /* Blog post typography. Scoped tight — only inside .prose-custom so it
    doesn't bleed into the landing-page components. Matches the amber/serif
-   system but tuned for long-form reading width and rhythm. */
-.prose-custom p {
+   system but tuned for long-form reading width and rhythm.
+
+   All selectors are wrapped in :where(...) so they contribute ZERO
+   specificity — meaning any Tailwind utility class inside the prose
+   wins without !important, and child components with .not-prose can
+   freely use their own styles. This mirrors @tailwindcss/typography's
+   approach. */
+.prose-custom :where(p:not(.not-prose, .not-prose *)) {
   color: var(--color-fg-muted);
 }
-.prose-custom strong {
+.prose-custom :where(strong:not(.not-prose, .not-prose *)) {
   color: var(--color-fg);
   font-weight: 600;
 }
-.prose-custom em {
+.prose-custom :where(em:not(.not-prose, .not-prose *)) {
   color: var(--color-fg);
   font-style: italic;
 }
-.prose-custom a {
+.prose-custom :where(a:not(.not-prose, .not-prose *)) {
   color: var(--color-accent);
   text-decoration: underline;
   text-decoration-color: color-mix(in oklch, var(--color-accent) 40%, transparent);
   text-underline-offset: 3px;
   transition: text-decoration-color 150ms ease;
 }
-.prose-custom a:hover {
+.prose-custom :where(a:not(.not-prose, .not-prose *)):hover {
   text-decoration-color: var(--color-accent);
 }
-.prose-custom code {
+.prose-custom :where(code:not(.not-prose, .not-prose *)) {
   font-family: var(--font-mono);
   font-size: 0.88em;
   background: var(--color-bg-elevated);
@@ -122,7 +128,7 @@
   border-radius: 6px;
   color: var(--color-fg);
 }
-.prose-custom pre {
+.prose-custom :where(pre:not(.not-prose, .not-prose *)) {
   background: var(--color-bg-sunken);
   border: 1px solid var(--color-border);
   border-radius: 10px;
@@ -132,14 +138,14 @@
   font-size: 13px;
   line-height: 1.55;
 }
-.prose-custom pre code {
+.prose-custom :where(pre:not(.not-prose, .not-prose *)) code {
   background: transparent;
   border: 0;
   padding: 0;
   font-size: inherit;
   color: var(--color-fg);
 }
-.prose-custom blockquote {
+.prose-custom :where(blockquote:not(.not-prose, .not-prose *)) {
   margin: 0;
   padding: 8px 0 8px 20px;
   border-left: 2px solid var(--color-accent);
@@ -149,7 +155,7 @@
   font-style: italic;
   line-height: 1.5;
 }
-.prose-custom ol {
+.prose-custom :where(ol:not(.not-prose, .not-prose *)) {
   counter-reset: item;
   list-style: none;
   padding: 0;
@@ -158,12 +164,12 @@
   flex-direction: column;
   gap: 12px;
 }
-.prose-custom ol > li {
+.prose-custom :where(ol:not(.not-prose, .not-prose *)) > li {
   counter-increment: item;
   padding-left: 40px;
   position: relative;
 }
-.prose-custom ol > li::before {
+.prose-custom :where(ol:not(.not-prose, .not-prose *)) > li::before {
   content: counter(item);
   position: absolute;
   left: 0;
