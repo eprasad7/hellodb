@@ -110,7 +110,7 @@ fn cmd_init(_args: &[String]) -> Result<i32, String> {
     let keypair = load_identity(&identity_path)?;
     let db_path = data.join("local.db");
     let db_key = derive_sqlcipher_key(&keypair.signing);
-    let _ = SqliteEngine::open(db_path.to_str().unwrap(), &db_key)
+    let _ = SqliteEngine::open(path_as_str(&db_path)?, &db_key)
         .map_err(|e| format!("opening db: {e}"))?;
 
     // Write default brain.toml if missing.
@@ -197,7 +197,7 @@ fn cmd_status(_args: &[String]) -> Result<i32, String> {
     let keypair = load_identity(&identity_path)?;
     let db_path = data.join("local.db");
     let db_key = derive_sqlcipher_key(&keypair.signing);
-    let storage = SqliteEngine::open(db_path.to_str().unwrap(), &db_key)
+    let storage = SqliteEngine::open(path_as_str(&db_path)?, &db_key)
         .map_err(|e| format!("opening db: {e}"))?;
 
     let namespaces = storage
@@ -354,7 +354,16 @@ fn cmd_recall(args: &[String]) -> Result<i32, String> {
 
     let db_path = data.join("local.db");
     let db_key = derive_sqlcipher_key(&keypair.signing);
-    let storage = match SqliteEngine::open(db_path.to_str().unwrap_or(""), &db_key) {
+    let db_path_str = match path_as_str(&db_path) {
+        Ok(s) => s,
+        Err(e) => {
+            if !quiet {
+                eprintln!("recall: {e}");
+            }
+            return Ok(0);
+        }
+    };
+    let storage = match SqliteEngine::open(db_path_str, &db_key) {
         Ok(s) => s,
         Err(e) => {
             if !quiet {
@@ -618,7 +627,7 @@ fn cmd_ingest(args: &[String]) -> Result<i32, String> {
         None
     } else {
         Some(
-            SqliteEngine::open(db_path.to_str().unwrap_or(""), &db_key)
+            SqliteEngine::open(path_as_str(&db_path)?, &db_key)
                 .map_err(|e| format!("opening db: {e}"))?,
         )
     };
@@ -984,9 +993,17 @@ fn cmd_doctor() -> Result<i32, String> {
                 let db = data.join("local.db");
                 if db.exists() {
                     let key = derive_sqlcipher_key(&kp.signing);
-                    if let Err(e) = SqliteEngine::open(db.to_str().unwrap(), &key) {
-                        findings.push(("db_open_failed", format!("{e}")));
-                        ok = false;
+                    match path_as_str(&db) {
+                        Ok(db_str) => {
+                            if let Err(e) = SqliteEngine::open(db_str, &key) {
+                                findings.push(("db_open_failed", format!("{e}")));
+                                ok = false;
+                            }
+                        }
+                        Err(e) => {
+                            findings.push(("db_path_not_utf8", e));
+                            ok = false;
+                        }
                     }
                 }
             }
@@ -1018,6 +1035,18 @@ fn data_dir() -> PathBuf {
     }
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
     PathBuf::from(home).join(".hellodb")
+}
+
+/// Borrow a `Path` as `&str`, returning a descriptive error if the path
+/// is not valid UTF-8. rusqlite / SQLCipher require a `&str` path, so
+/// we have to deal with this eventuality explicitly rather than panic.
+///
+/// Non-UTF-8 filesystem paths are rare on macOS/Linux but legal, and
+/// someone setting HELLODB_HOME to a weird path shouldn't crash the
+/// CLI with a `.unwrap()` panic.
+fn path_as_str(p: &Path) -> Result<&str, String> {
+    p.to_str()
+        .ok_or_else(|| format!("path is not valid UTF-8: {}", p.display()))
 }
 
 fn load_identity(path: &Path) -> Result<KeyPair, String> {

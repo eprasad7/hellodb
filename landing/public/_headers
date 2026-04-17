@@ -1,0 +1,56 @@
+# ─────────────────────────────────────────────────────────────────────────
+# Cloudflare Pages headers for hellodb.dev
+#
+# Two concerns:
+#   1. Content-Type overrides for extension-less Next.js metadata routes
+#      (social crawlers refuse to unfurl octet-stream)
+#   2. Security headers applied site-wide — CSP, HSTS, frame-deny, etc.
+#
+# Blog post og:image lives at a dynamic path, so we glob to cover nested
+# opengraph-image routes as well as the root.
+# ─────────────────────────────────────────────────────────────────────────
+
+# Metadata routes — Content-Type overrides so X / Slack / Discord unfurl.
+/opengraph-image
+  Content-Type: image/png
+  Cache-Control: public, max-age=3600
+
+/opengraph-image/
+  Content-Type: image/png
+  Cache-Control: public, max-age=3600
+
+/blog/*/opengraph-image
+  Content-Type: image/png
+  Cache-Control: public, max-age=3600
+
+/blog/*/opengraph-image/
+  Content-Type: image/png
+  Cache-Control: public, max-age=3600
+
+/icon
+  Content-Type: image/png
+  Cache-Control: public, max-age=86400
+
+/icon/
+  Content-Type: image/png
+  Cache-Control: public, max-age=86400
+
+# Long-cache hashed assets.
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Site-wide security headers.
+# CSP is intentionally strict — the landing is static SSG, no inline
+# scripts except the JSON-LD block (which is safe by nature but needs
+# 'unsafe-inline' to render). If we ever add third-party analytics,
+# update this allowlist explicitly rather than loosening it.
+/*
+  Cache-Control: public, max-age=0, must-revalidate
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests
+  Cross-Origin-Opener-Policy: same-origin
+  X-Robots-Tag: index, follow

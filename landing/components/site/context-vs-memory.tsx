@@ -55,7 +55,7 @@ function ContextPanel() {
           <span className="text-fg-muted">986K / 1M</span>
         </div>
         <ul className="grid grid-cols-2 gap-1.5">
-          {facts.map((f, i) => (
+          {facts.map((f) => (
             <li
               key={f}
               className="truncate rounded-[4px] border border-border bg-bg-elevated px-2 py-1 font-mono text-[10.5px] text-fg-muted"

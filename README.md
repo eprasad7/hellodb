@@ -38,6 +38,13 @@ curl -fsSL hellodb.dev/install | sh
 iwr -useb hellodb.dev/install.ps1 | iex
 ```
 
+> **Intel Mac (`x86_64-apple-darwin`) note:** prebuilt tarballs are
+> Apple Silicon only — Apple has shipped 100% of new Macs on ARM since
+> late 2020 and the Intel matrix slot was blocking releases on scarce
+> runners. Intel users can either **build from source** (`git clone … &&
+> make build`) or run the install under Rosetta 2 from an `aarch64`
+> shell. The installer prints these options if it detects `x86_64`.
+
 That's it. The installer:
 
 1. Detects your platform and downloads the matching release tarball
