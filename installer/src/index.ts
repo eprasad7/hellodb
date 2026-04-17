@@ -1,44 +1,57 @@
 // hellodb-installer — lightweight public Worker at https://hellodb.dev.
 //
 // Routes:
-//   GET /install   — fetch scripts/install.sh from raw.githubusercontent.com
-//                    and return as text/plain so `curl | sh` works.
-//   GET /install.sh — same as above, kept as an alias for `wget` users.
-//   GET /          — redirect to the GitHub repo.
-//   GET /docs      — redirect to the repo README.
-//   GET /health    — { status: "ok", version, repo, install_url }.
-//   everything else → 404 with a short JSON error.
+//   GET /install       — POSIX shell installer (text/x-shellscript).
+//                        On /install, if the User-Agent looks like PowerShell
+//                        (iwr / Invoke-WebRequest), we return the .ps1 version
+//                        so `iwr hellodb.dev/install | iex` Just Works.
+//   GET /install.sh    — explicit POSIX path.
+//   GET /install.ps1   — explicit PowerShell path.
+//   GET /              — 302 to the GitHub repo.
+//   GET /docs          — 302 to README.
+//   GET /releases      — 302 to Releases tab.
+//   GET /health        — { status, version, repo, install_urls }.
+//   everything else    — 404 JSON.
 //
-// No authentication. No R2. No Workers AI. Just a dumb static-serving
-// Worker that stays unconditionally public — the gateway Worker
-// (authenticated) handles anything touching user data.
+// No auth. No user data. Just a static-serving public shim so the
+// one-liner install URL is the same domain the user types into their
+// browser.
 
 export interface Env {
   INSTALLER_VERSION: string;
   REPO: string;
-  INSTALL_SCRIPT_RAW: string;
+  INSTALL_SCRIPT_SH_RAW: string;
+  INSTALL_SCRIPT_PS1_RAW: string;
 }
 
 export default {
   async fetch(req: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
 
-    // Reject non-GET/HEAD up front — this is a read-only service.
     if (req.method !== "GET" && req.method !== "HEAD") {
       return jsonError(405, "method_not_allowed", "GET only");
     }
 
     switch (url.pathname) {
       case "/install":
+        // User-agent sniff so `iwr hellodb.dev/install | iex` on Windows
+        // gets the .ps1 without the user having to remember the extension.
+        return serveInstall(env, isPowershellUa(req) ? "ps1" : "sh");
       case "/install.sh":
-        return serveInstallScript(env);
+        return serveInstall(env, "sh");
+      case "/install.ps1":
+        return serveInstall(env, "ps1");
 
       case "/health":
         return Response.json({
           status: "ok",
           version: env.INSTALLER_VERSION,
           repo: env.REPO,
-          install_url: `https://${url.host}/install`,
+          install_urls: {
+            sh:  `https://${url.host}/install.sh`,
+            ps1: `https://${url.host}/install.ps1`,
+            auto: `https://${url.host}/install`,
+          },
         });
 
       case "/":
@@ -57,31 +70,42 @@ export default {
   },
 };
 
-async function serveInstallScript(env: Env): Promise<Response> {
-  const upstream = await fetch(env.INSTALL_SCRIPT_RAW, {
-    // Short cache — we want updates to land quickly but not thrash origin.
+async function serveInstall(env: Env, flavor: "sh" | "ps1"): Promise<Response> {
+  const upstream = flavor === "ps1" ? env.INSTALL_SCRIPT_PS1_RAW : env.INSTALL_SCRIPT_SH_RAW;
+  const resp = await fetch(upstream, {
     cf: { cacheTtl: 60, cacheEverything: true },
   });
-  if (!upstream.ok) {
+  if (!resp.ok) {
     return jsonError(
       502,
       "upstream_unavailable",
-      `could not fetch install.sh (status ${upstream.status})`,
+      `could not fetch install.${flavor} (status ${resp.status})`,
     );
   }
-  const body = await upstream.text();
+  const body = await resp.text();
+  const contentType =
+    flavor === "ps1" ? "text/plain; charset=utf-8" : "text/x-shellscript; charset=utf-8";
   return new Response(body, {
     status: 200,
     headers: {
-      "content-type": "text/x-shellscript; charset=utf-8",
-      // Cache at the edge for 60s; clients (curl) shouldn't cache.
+      "content-type": contentType,
       "cache-control": "public, max-age=60",
       "x-content-type-options": "nosniff",
-      // Advertise the source so users can audit before piping.
-      "x-install-source": env.INSTALL_SCRIPT_RAW,
+      "x-install-source": upstream,
+      "x-install-flavor": flavor,
       "x-installer-version": env.INSTALLER_VERSION,
     },
   });
+}
+
+function isPowershellUa(req: Request): boolean {
+  const ua = (req.headers.get("user-agent") || "").toLowerCase();
+  return (
+    ua.includes("powershell") ||
+    ua.includes("windowspowershell") ||
+    ua.includes("invoke-webrequest") ||
+    ua.includes("windowsnt")
+  );
 }
 
 function jsonError(status: number, code: string, message: string): Response {

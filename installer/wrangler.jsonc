@@ -5,9 +5,10 @@
   "compatibility_date": "2025-09-06",
   "observability": { "enabled": true },
   "vars": {
-    "INSTALLER_VERSION": "0.1.0",
+    "INSTALLER_VERSION": "0.2.0",
     "REPO": "eprasad7/hellodb",
-    "INSTALL_SCRIPT_RAW": "https://raw.githubusercontent.com/eprasad7/hellodb/master/scripts/install.sh"
+    "INSTALL_SCRIPT_SH_RAW": "https://raw.githubusercontent.com/eprasad7/hellodb/master/scripts/install.sh",
+    "INSTALL_SCRIPT_PS1_RAW": "https://raw.githubusercontent.com/eprasad7/hellodb/master/scripts/install.ps1"
   },
   "routes": [
     { "pattern": "hellodb.dev", "custom_domain": true },

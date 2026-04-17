@@ -88,19 +88,36 @@ jobs:
         include:
           - os: macos-14            # Apple Silicon
             target: aarch64-apple-darwin
+            exe_suffix: ""
           - os: macos-13            # Intel Mac
             target: x86_64-apple-darwin
+            exe_suffix: ""
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
+            exe_suffix: ""
           - os: ubuntu-22.04-arm    # ARM64 Linux runner
             target: aarch64-unknown-linux-gnu
+            exe_suffix: ""
+          - os: windows-2022        # Windows x86_64 (MSVC)
+            target: x86_64-pc-windows-msvc
+            exe_suffix: ".exe"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Linux system deps
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libssl-dev
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config
+
+      # NOTE: Windows needs nasm + a recent perl for openssl-src's vendored
+      # OpenSSL build. Both are preinstalled on windows-2022 runners
+      # (Strawberry Perl for perl; NASM under Chocolatey). Verify:
+      - name: Verify Windows build prereqs
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          perl --version | head -1
+          # nasm is auto-picked up by openssl-src
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -111,18 +128,34 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: cargo build --release
+        shell: bash
         run: cargo build --release --target ${{ matrix.target }} --bin hellodb --bin hellodb-mcp --bin hellodb-brain
 
-      - name: Bundle plugin artifact
+      - name: Bundle plugin artifact (POSIX)
+        if: runner.os != 'Windows'
         run: ./scripts/bundle-plugin.sh ${{ matrix.target }}
 
+      - name: Bundle plugin artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p plugin/bin
+          for bin in hellodb hellodb-mcp hellodb-brain; do
+            cp "target/${{ matrix.target }}/release/${bin}.exe" "plugin/bin/${bin}.exe"
+          done
+
       - name: Package tarball
+        shell: bash
         run: |
           mkdir -p dist
           tar -czf "dist/hellodb-plugin-${{ matrix.target }}.tar.gz" \
               --exclude='plugin/bin/.gitkeep' plugin \
               .claude-plugin/marketplace.json
-          (cd dist && shasum -a 256 "hellodb-plugin-${{ matrix.target }}.tar.gz" > "hellodb-plugin-${{ matrix.target }}.tar.gz.sha256")
+          if command -v shasum >/dev/null 2>&1; then
+            (cd dist && shasum -a 256 "hellodb-plugin-${{ matrix.target }}.tar.gz" > "hellodb-plugin-${{ matrix.target }}.tar.gz.sha256")
+          else
+            (cd dist && sha256sum "hellodb-plugin-${{ matrix.target }}.tar.gz" > "hellodb-plugin-${{ matrix.target }}.tar.gz.sha256")
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
