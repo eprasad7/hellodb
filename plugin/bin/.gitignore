@@ -1,0 +1,7 @@
+# Platform-specific binaries live here after `make bundle` or
+# CI's per-platform build. Users installing from a release tarball
+# get them pre-populated. Local dev can also use `make dev` which
+# symlinks to target/release/ instead.
+hellodb
+hellodb-mcp
+hellodb-brain
