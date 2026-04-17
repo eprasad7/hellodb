@@ -16,9 +16,11 @@ Ships as a Claude Code plugin with:
   by default — cheap, fast, offline-capable
 - **Stop hook** that fires the digest pipeline in the background after
   every session, idempotent, cool-down-gated
-- **16+ MCP tools** exposing every primitive (namespaces, schemas,
+- **23 MCP tools** exposing every primitive (namespaces, schemas,
   records, branches, merge, tail cursor, reinforcement metadata, vector
-  upsert/recall, embed, ingest)
+  upsert/recall, embed, ingest, and `hellodb_find_relevant_memories` —
+  Claude Code-shaped retrieval with graceful fallback from semantic to
+  keyword ranking)
 
 ---
 
@@ -49,6 +51,26 @@ That's it. The installer:
 
 Restart Claude Code once after install. The plugin's skills become visible
 to the session automatically.
+
+### First session
+
+Confirm everything works and pull in any existing Claude Code memory:
+
+```sh
+hellodb status                      # identity fingerprint + data_dir + namespace list
+hellodb ingest --from-claudemd      # import ~/.claude/projects/*/memory/*.md into hellodb
+hellodb recall --top 8              # show top-ranked facts (decay-adjusted)
+```
+
+`ingest --from-claudemd` is idempotent — re-running on unchanged files is a
+no-op (content-addressing dedupes). Each Claude Code project lands in its own
+namespace (`claude.memory.<project-slug>`), so cross-project memory never
+leaks between repos.
+
+Inside Claude Code, the plugin's skills (`/hellodb:memorize`,
+`/hellodb:recall`, `/hellodb:review`) and the MCP tool
+`hellodb_find_relevant_memories` wire up automatically once the session
+restarts.
 
 ### Optional: Cloudflare-backed semantic search
 
@@ -124,7 +146,7 @@ crates/
 │                      mock (deterministic, for tests), fastembed (local ONNX, opt-in feature)
 ├── hellodb-brain      Passive digest daemon — CLI + Stop-hook orchestration
 ├── hellodb-mcp        stdio JSON-RPC MCP server exposing all primitives
-└── hellodb-cli        Unified `hellodb` front door: init / status / recall / doctor / mcp / brain
+└── hellodb-cli        Unified `hellodb` front door: init / status / recall / ingest / doctor / mcp / brain
 
 plugin/                 Claude Code plugin bundle (manifest, skills, agents, hooks)
 gateway/                TypeScript Cloudflare Worker: Workers AI + R2 proxy
@@ -164,6 +186,9 @@ hellodb status               identity + namespaces + record counts + brain state
 hellodb recall [--top N]     top facts ranked by decayed reinforcement score
                              flags: --top, --namespace, --format md|json,
                                     --half-life-days, --verbose
+hellodb ingest               import Claude Code auto-memory markdown files
+                             flags: --from-claudemd (scan ~/.claude/projects/*/memory/*.md),
+                                    --source PATH (explicit dir), --dry-run
 hellodb mcp                  run the MCP server (stdio; for Claude Code)
 hellodb brain [--status]     run one passive-memory digest pass
                              flags: --dry-run, --force, --status, --init-config
