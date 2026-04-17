@@ -6,23 +6,24 @@ export function Nav() {
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6 md:px-10">
         <Link
           href="/"
-          className="font-mono text-[15px] tracking-tight text-fg"
+          className="inline-flex h-11 items-center font-mono text-[15px] tracking-tight text-fg"
           aria-label="hellodb home"
         >
-          <span className="text-accent">›</span> hellodb
+          <span className="text-accent">›</span>
+          <span className="ml-1.5">hellodb</span>
         </Link>
         <nav className="flex items-center gap-1 sm:gap-2">
           <NavLink href="#diagram">how it works</NavLink>
-          <NavLink href="#install">install</NavLink>
           <NavLink
             href="https://github.com/eprasad7/hellodb"
             external
+            aria-label="hellodb on GitHub"
           >
             github
           </NavLink>
           <Link
             href="#install"
-            className="ml-2 inline-flex h-9 items-center gap-2 rounded-full border border-accent/40 bg-accent/10 px-4 font-mono text-[13px] text-accent transition-colors hover:border-accent hover:bg-accent/15"
+            className="ml-1 inline-flex h-11 items-center gap-2 rounded-full border border-accent/40 bg-accent/10 px-4 font-mono text-[13px] text-accent transition-colors hover:border-accent hover:bg-accent/15"
           >
             install
           </Link>
@@ -36,13 +37,15 @@ function NavLink({
   href,
   children,
   external,
+  ...rest
 }: {
   href: string;
   children: React.ReactNode;
   external?: boolean;
+  "aria-label"?: string;
 }) {
   const className =
-    "hidden h-9 items-center rounded-full px-3 font-mono text-[13px] text-fg-muted transition-colors hover:text-fg sm:inline-flex";
+    "hidden h-11 items-center rounded-full px-3 font-mono text-[13px] text-fg-muted transition-colors hover:text-fg sm:inline-flex";
   if (external) {
     return (
       <a
@@ -50,13 +53,14 @@ function NavLink({
         target="_blank"
         rel="noopener noreferrer"
         className={className}
+        {...rest}
       >
         {children}
       </a>
     );
   }
   return (
-    <Link href={href} className={className}>
+    <Link href={href} className={className} {...rest}>
       {children}
     </Link>
   );

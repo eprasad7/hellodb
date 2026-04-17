@@ -153,6 +153,10 @@ max_episodes_per_pass = 200
 # for how to wire a real LLM backend.
 backend = "mock"
 fact_schema_id = "brain.fact"
+# Confidence at or above which facts auto-merge to main. Set to 1.1 to hold
+# every fact for manual review (via /hellodb:review). `supersedes` facts
+# (contradictions) always wait for review regardless of this value.
+auto_merge_threshold = 0.75
 "#,
         db = data.join("local.db").display(),
         id = data.join("identity.key").display(),

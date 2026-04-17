@@ -204,9 +204,21 @@ enum PassReport {
         would_write_to_branch: String,
     },
     Digested {
-        facts_written: usize,
+        /// Total facts produced this pass (auto_merged + held_for_review).
+        facts_total: usize,
+        /// Facts that cleared `auto_merge_threshold` AND had no `supersedes`,
+        /// written directly to `{facts}/main`. No human review required.
+        auto_merged: usize,
+        /// Facts held on the draft branch (below threshold, or had a
+        /// `supersedes` contradiction flag). User approves via /hellodb:review.
+        held_for_review: usize,
+        /// Count of facts that were embedded and upserted to the vector index.
+        /// ≤ facts_total when an embedder is configured and at least one
+        /// fact's embedding succeeded; 0 when no embedder is configured.
         facts_indexed: usize,
-        branch_id: String,
+        /// Branch id of the draft (present only if at least one fact was held).
+        /// `None` when every fact auto-merged — no empty draft branch created.
+        branch_id: Option<String>,
         episode_count: usize,
         new_cursor: u64,
     },
@@ -287,17 +299,33 @@ fn run_one_pass(
     // Ensure facts namespace + fact schema exist (idempotent).
     ensure_facts_namespace(&mut storage, &keypair, config)?;
 
-    // Create the digest branch off facts/main.
     let now = now_ms();
-    let branch_id = format!("{}/digest-{}", config.namespaces.facts, now);
-    let parent_id = format!("{}/main", config.namespaces.facts);
-    let branch = Branch::new(
-        branch_id.clone(),
-        config.namespaces.facts.clone(),
-        parent_id,
-        format!("digest-{now}"),
-    );
-    storage.create_branch(branch)?;
+    let main_branch = format!("{}/main", config.namespaces.facts);
+
+    // Split facts by auto-merge eligibility. A fact auto-merges iff its
+    // confidence meets the threshold AND it carries no `supersedes` flag
+    // (supersessions replace an existing record — that archival decision
+    // is human-in-the-loop regardless of how confident the agent is).
+    let threshold = config.digest.auto_merge_threshold;
+    let (auto_merge_facts, review_facts): (Vec<_>, Vec<_>) = facts
+        .into_iter()
+        .partition(|f| f.confidence >= threshold && f.supersedes.is_none());
+
+    // Only create a draft branch when at least one fact needs review — no
+    // point in an empty branch cluttering list_branches output.
+    let review_branch_id: Option<String> = if !review_facts.is_empty() {
+        let bid = format!("{}/digest-{}", config.namespaces.facts, now);
+        let branch = Branch::new(
+            bid.clone(),
+            config.namespaces.facts.clone(),
+            main_branch.clone(),
+            format!("digest-{now}"),
+        );
+        storage.create_branch(branch)?;
+        Some(bid)
+    } else {
+        None
+    };
 
     // Optional: build an embedder from env. Failure here is non-fatal —
     // facts still get written, they just don't get indexed for semantic
@@ -312,12 +340,6 @@ fn run_one_pass(
         }
     };
 
-    // Write each fact as a signed record on the draft branch. If an
-    // embedder is configured, also embed the `statement` and upsert
-    // into the namespace's vector index so hellodb_embed_and_search
-    // picks it up at recall time.
-    let mut facts_written = 0;
-    let mut facts_indexed = 0;
     let vector_dir = config
         .data
         .db_path
@@ -325,7 +347,9 @@ fn run_one_pass(
         .unwrap_or(std::path::Path::new("."))
         .join("vectors");
 
-    for fact in &facts {
+    // Write + optionally index helper. Both the auto-merge path (→ main)
+    // and the review path (→ draft branch) go through this.
+    let mut write_fact = |fact: &Fact, branch: &str| -> Result<bool, BrainError> {
         let data = serde_json::to_value(fact)?;
         let record = Record::new(
             &keypair.signing,
@@ -335,9 +359,13 @@ fn run_one_pass(
             None,
         )?;
         let record_id = record.record_id.clone();
-        storage.put_record(record, &branch_id)?;
-        facts_written += 1;
+        storage.put_record(record, branch)?;
 
+        // Index everything, whether auto-merged or held. Held-but-indexed
+        // facts won't surface via recall_deep's branch-scoped query anyway
+        // (facts/main is the default recall branch), so there's no leak
+        // of draft content — we just front-load the embedding call so
+        // post-merge recall is immediate.
         if let Some(ref embedder) = embedder {
             match embedder.embed_one(&fact.statement) {
                 Ok(v) => {
@@ -347,9 +375,9 @@ fn run_one_pass(
                         Ok(mut idx) => {
                             if let Err(e) = idx.upsert(record_id, v) {
                                 eprintln!("brain: vector upsert failed: {e}");
-                            } else {
-                                facts_indexed += 1;
+                                return Ok(false);
                             }
+                            return Ok(true);
                         }
                         Err(e) => eprintln!("brain: vector index open failed: {e}"),
                     }
@@ -357,19 +385,48 @@ fn run_one_pass(
                 Err(e) => eprintln!("brain: embed failed for fact '{}': {e}", fact.topic),
             }
         }
-    }
+        Ok(false)
+    };
 
-    // Update state — only successful digests advance last_run_ms.
+    let mut auto_merged = 0usize;
+    let mut held_for_review = 0usize;
+    let mut facts_indexed = 0usize;
+
+    for fact in &auto_merge_facts {
+        let indexed = write_fact(fact, &main_branch)?;
+        auto_merged += 1;
+        if indexed {
+            facts_indexed += 1;
+        }
+    }
+    if let Some(ref bid) = review_branch_id {
+        for fact in &review_facts {
+            let indexed = write_fact(fact, bid)?;
+            held_for_review += 1;
+            if indexed {
+                facts_indexed += 1;
+            }
+        }
+    }
+    let facts_total = auto_merged + held_for_review;
+
+    // Update state — only passes that actually produced facts advance
+    // last_run_ms. (Empty digests on a technicality shouldn't reset the
+    // cool-down.)
     state.last_cursor = new_cursor;
-    state.last_run_ms = now;
-    state.run_count += 1;
+    if facts_total > 0 {
+        state.last_run_ms = now;
+        state.run_count += 1;
+    }
     state.last_skip_reason = None;
     state.save(&config.data.state_path)?;
 
     Ok(PassReport::Digested {
-        facts_written,
+        facts_total,
+        auto_merged,
+        held_for_review,
         facts_indexed,
-        branch_id,
+        branch_id: review_branch_id,
         episode_count: episodes.len(),
         new_cursor,
     })

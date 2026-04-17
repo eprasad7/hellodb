@@ -78,6 +78,21 @@ pub struct DigestConfig {
     /// facts namespace. Auto-registered on first use.
     #[serde(default = "default_fact_schema")]
     pub fact_schema_id: String,
+    /// Confidence threshold (0.0–1.0) at or above which facts are auto-merged
+    /// directly to `{facts}/main` instead of held on a draft branch.
+    ///
+    /// The install-and-forget default: 0.75 (mock backend emits ~0.55–0.95;
+    /// 3+ supporting episodes on one topic cross the bar). Set to `1.1` or
+    /// higher to disable auto-merge entirely (legacy review-everything
+    /// behavior). Set to `0.0` to auto-merge all facts regardless of
+    /// confidence (aggressive — only useful with a well-trusted LLM backend).
+    ///
+    /// Facts with a `supersedes` field pointing at an existing record are
+    /// ALWAYS held for review regardless of threshold — contradiction
+    /// resolution is an inherently human-in-the-loop call, and we won't
+    /// archive prior facts without consent.
+    #[serde(default = "default_auto_merge_threshold")]
+    pub auto_merge_threshold: f32,
 }
 
 impl Default for DigestConfig {
@@ -85,6 +100,7 @@ impl Default for DigestConfig {
         Self {
             backend: default_backend(),
             fact_schema_id: default_fact_schema(),
+            auto_merge_threshold: default_auto_merge_threshold(),
         }
     }
 }
@@ -94,6 +110,9 @@ fn default_backend() -> String {
 }
 fn default_fact_schema() -> String {
     "brain.fact".into()
+}
+fn default_auto_merge_threshold() -> f32 {
+    0.75
 }
 
 impl Config {

@@ -37,6 +37,15 @@ pub struct Fact {
     /// Free-form rationale the backend wants to attach.
     #[serde(default)]
     pub rationale: Option<String>,
+    /// If Some, this fact is meant to replace an existing fact with the
+    /// given record_id. Archival of the old record is an inherently
+    /// human-in-the-loop decision, so facts with a Some here are ALWAYS
+    /// held for review, regardless of `confidence` or auto-merge threshold.
+    ///
+    /// The MockBackend never sets this. Real LLM backends set it when
+    /// they detect that a new episode contradicts an existing fact.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supersedes: Option<String>,
 }
 
 pub trait DigestBackend {
@@ -118,6 +127,7 @@ impl DigestBackend for MockBackend {
                     confidence,
                     derived_from,
                     rationale: Some(format!("mock: grouped {} episodes by topic", members.len())),
+                    supersedes: None,
                 }
             })
             .collect();

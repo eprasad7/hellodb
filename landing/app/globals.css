@@ -29,7 +29,7 @@
   }
   html {
     scroll-behavior: smooth;
-    scroll-padding-top: 72px;
+    scroll-padding-top: 96px;
   }
   html, body {
     background: var(--color-bg);
