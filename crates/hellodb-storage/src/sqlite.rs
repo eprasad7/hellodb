@@ -255,7 +255,8 @@ impl SqliteEngine {
         }
 
         let mut result: Vec<Record> = seen.into_values().collect();
-        result.sort_by(|a, b| b.created_at_ms.cmp(&a.created_at_ms));
+        // newest first — sort by descending created_at_ms via Reverse key
+        result.sort_by_key(|r| std::cmp::Reverse(r.created_at_ms));
         Ok(result.into_iter().skip(offset).take(limit).collect())
     }
 }

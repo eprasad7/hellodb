@@ -175,7 +175,7 @@ mod tests {
             ],
             vec!["ainp.commerce".into()],
             1000,
-            3600_000, // 1 hour
+            3_600_000, // 1 hour
             100,
         )
         .unwrap();
@@ -198,7 +198,7 @@ mod tests {
             vec![DelegationScope::Full],
             vec![],
             1000,
-            3600_000,
+            3_600_000,
             0,
         )
         .unwrap();
@@ -239,7 +239,7 @@ mod tests {
             vec![DelegationScope::CrossNamespaceQuery],
             vec![],
             1000,
-            3600_000,
+            3_600_000,
             2,
         )
         .unwrap();
@@ -262,7 +262,7 @@ mod tests {
             vec![DelegationScope::ReadNamespace],
             vec![],
             1000,
-            3600_000,
+            3_600_000,
             0,
         )
         .unwrap();
@@ -283,7 +283,7 @@ mod tests {
             vec![DelegationScope::ReadNamespace],
             vec![],
             1000,
-            3600_000,
+            3_600_000,
             0,
         )
         .unwrap();
@@ -303,7 +303,7 @@ mod tests {
             vec![DelegationScope::ReadNamespace],
             vec!["ainp.commerce".into(), "health.vitals".into()],
             1000,
-            3600_000,
+            3_600_000,
             0,
         )
         .unwrap();
@@ -324,7 +324,7 @@ mod tests {
             vec![DelegationScope::ReadNamespace],
             vec![], // empty = all namespaces
             1000,
-            3600_000,
+            3_600_000,
             0,
         )
         .unwrap();
@@ -343,7 +343,7 @@ mod tests {
             vec![DelegationScope::CrossNamespaceQuery],
             vec!["ainp.commerce".into()],
             1000,
-            3600_000,
+            3_600_000,
             50,
         )
         .unwrap();

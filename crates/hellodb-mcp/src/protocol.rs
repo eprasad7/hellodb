@@ -44,6 +44,7 @@ pub struct RpcError {
 }
 
 impl RpcError {
+    #[allow(dead_code)]
     pub fn internal(msg: impl Into<String>) -> Self {
         Self {
             code: -32603,

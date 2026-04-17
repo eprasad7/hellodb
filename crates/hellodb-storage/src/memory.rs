@@ -106,7 +106,8 @@ impl MemoryEngine {
         }
 
         let mut result: Vec<Record> = seen.into_values().collect();
-        result.sort_by(|a, b| b.created_at_ms.cmp(&a.created_at_ms)); // newest first
+        // newest first — sort by descending created_at_ms via Reverse key
+        result.sort_by_key(|r| std::cmp::Reverse(r.created_at_ms));
         result
     }
 }
@@ -211,7 +212,7 @@ impl StorageEngine for MemoryEngine {
 
         let merge_result = branch
             .fast_forward_merge(&parent)
-            .map_err(|e| StorageError::Core(e))?;
+            .map_err(StorageError::Core)?;
 
         if !merge_result.conflicts.is_empty() {
             return Err(StorageError::MergeConflict(branch_id.to_string()));

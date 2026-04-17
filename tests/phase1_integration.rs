@@ -247,7 +247,7 @@ fn cross_namespace_agent_query() {
         ],
         vec!["commerce".into(), "health".into()],
         1000,
-        3600_000,
+        3_600_000,
         100,
     )
     .unwrap();

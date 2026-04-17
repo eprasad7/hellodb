@@ -304,7 +304,7 @@ mod tests {
             vec![DelegationScope::CrossNamespaceQuery],
             vec!["ainp.commerce".into(), "health.vitals".into()],
             1000,
-            3600_000,
+            3_600_000,
             100,
         )
         .unwrap();
@@ -328,7 +328,7 @@ mod tests {
             vec![DelegationScope::CrossNamespaceQuery],
             vec!["ainp.commerce".into()], // only ainp.commerce
             1000,
-            3600_000,
+            3_600_000,
             100,
         )
         .unwrap();
@@ -353,7 +353,7 @@ mod tests {
             vec![DelegationScope::ReadNamespace],
             vec![],
             1000,
-            3600_000,
+            3_600_000,
             0,
         )
         .unwrap();
@@ -381,7 +381,7 @@ mod tests {
             vec![DelegationScope::WriteNamespace],
             vec!["test.ns".into()],
             1000,
-            3600_000,
+            3_600_000,
             0,
         )
         .unwrap();

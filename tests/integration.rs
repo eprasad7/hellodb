@@ -379,7 +379,7 @@ fn run_full_scenario(engine: &mut dyn StorageEngine) {
         ],
         vec!["app_a.commerce".into(), "health.vitals".into()],
         1000,
-        3600_000, // 1 hour
+        3_600_000, // 1 hour
         100,      // max 100 queries
     )
     .unwrap();
@@ -482,7 +482,7 @@ fn run_full_scenario(engine: &mut dyn StorageEngine) {
         vec![DelegationScope::ReadNamespace],
         vec![],
         1000,
-        3600_000,
+        3_600_000,
         0,
     )
     .unwrap();
@@ -611,7 +611,7 @@ fn integration_write_delegation() {
         ],
         vec!["shared.notes".into()],
         1000,
-        3600_000,
+        3_600_000,
         0,
     )
     .unwrap();
@@ -700,7 +700,7 @@ fn integration_delegation_query_limit() {
         vec![DelegationScope::ReadNamespace],
         vec![],
         1000,
-        3600_000,
+        3_600_000,
         3, // max 3 queries
     )
     .unwrap();

@@ -520,7 +520,7 @@ mod tests {
             ],
             vec!["commerce".into(), "health".into()],
             1000,
-            3600_000,
+            3_600_000,
             100,
         )
         .unwrap();
