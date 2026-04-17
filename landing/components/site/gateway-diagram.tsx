@@ -20,7 +20,39 @@ export function GatewayDiagram() {
         </>
       }
     >
-      <div className="rounded-[var(--radius-card)] border border-border bg-bg-sunken/60 p-6 sm:p-10 ring-amber">
+      {/* Mobile fallback: stacked cards (SVG is illegible <md) */}
+      <div className="grid gap-4 md:hidden">
+        <MobilePanel
+          title="your machine"
+          sub="~/.hellodb · always local"
+          rows={[
+            { label: "hellodb-mcp", hint: "stdio JSON-RPC 2.0" },
+            { label: "hellodb-brain", hint: "digests on Stop hook" },
+            { label: "SQLCipher", hint: "encrypted at rest" },
+            { label: "vector index", hint: "per-namespace, encrypted" },
+            { label: "Ed25519 keys", hint: "OS keychain" },
+          ]}
+        />
+        <div className="py-1 text-center font-mono text-[11px] tracking-[0.16em] text-fg-muted">
+          <span className="text-accent">▼</span>{" "}
+          <span>HTTPS · bearer in OS keychain</span>{" "}
+          <span className="text-accent">▼</span>
+        </div>
+        <MobilePanel
+          title="your gateway Worker"
+          sub="your Cloudflare · ~$0"
+          accent
+          rows={[
+            { label: "/embed", hint: "→ Workers AI · bge-small (384d)" },
+            { label: "/r2/*", hint: "→ R2 bucket · encrypted deltas" },
+            { label: "/vec/*", hint: "→ Vectorize · optional mirror" },
+            { label: "/auth", hint: "→ Cloudflare Access · OAuth" },
+            { label: "deploy", hint: "wrangler login · no API token" },
+          ]}
+        />
+      </div>
+
+      <div className="hidden rounded-[var(--radius-card)] border border-border bg-bg-sunken/60 p-6 ring-amber md:block md:p-10">
         <svg
           viewBox="0 0 1000 480"
           className="h-auto w-full"
@@ -330,5 +362,41 @@ export function GatewayDiagram() {
         ))}
       </div>
     </Section>
+  );
+}
+
+function MobilePanel({
+  title,
+  sub,
+  rows,
+  accent = false,
+}: {
+  title: string;
+  sub: string;
+  rows: { label: string; hint: string }[];
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-[var(--radius-card)] border bg-bg-elevated/40 p-4 ${
+        accent ? "border-accent/35" : "border-border"
+      }`}
+    >
+      <div className="mb-1 font-mono text-[13px] text-fg">{title}</div>
+      <div className="mb-3 font-mono text-[11px] text-fg-muted">{sub}</div>
+      <div className="border-t border-border/60 pt-3">
+        {rows.map((r, i) => (
+          <div
+            key={r.label}
+            className={`flex items-center justify-between gap-3 py-1.5 font-mono text-[12px] ${
+              i < rows.length - 1 ? "border-b border-border/30" : ""
+            }`}
+          >
+            <span className={accent ? "text-accent" : "text-fg"}>{r.label}</span>
+            <span className="text-right text-[11px] text-fg-muted">{r.hint}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

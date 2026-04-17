@@ -35,9 +35,16 @@ export function InAction() {
             Got it — saved as a project convention. I&apos;ll use pnpm going
             forward and won&apos;t suggest npm scripts.
           </Bubble>
-          <p className="mt-4 font-mono text-[11px] leading-relaxed text-fg-subtle">
-            Write returns instantly. The episode lands in the local SQLCipher
-            DB. The brain process picks it up on the next Stop hook.
+          <div className="mt-3 flex items-center gap-2 font-mono text-[11px] text-fg-subtle">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-success/40 bg-success/10 px-2 py-0.5 text-success">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              confidence 0.92 · auto-merged
+            </span>
+          </div>
+          <p className="mt-4 font-mono text-[11px] leading-relaxed text-fg-muted">
+            Write returns instantly. On the next Stop hook, memory-digest
+            scores the fact and (because confidence ≥ 0.75) lands it straight
+            on main. No review queue to clear.
           </p>
         </div>
 
@@ -68,8 +75,8 @@ export function InAction() {
             <code className="font-mono text-accent">pnpm install</code> per the
             project convention.
           </Bubble>
-          <p className="mt-4 font-mono text-[11px] leading-relaxed text-fg-subtle">
-            Cosine similarity ranks the hits, time-decay reinforcement boosts
+          <p className="mt-4 font-mono text-[11px] leading-relaxed text-fg-muted">
+            Cosine similarity ranks hits; time-decay reinforcement boosts
             recently-touched facts. No round-trip to a cloud service.
           </p>
         </div>

@@ -18,7 +18,7 @@ export function Section({
   return (
     <section
       id={id}
-      className={`relative w-full px-5 py-16 sm:px-6 sm:py-24 md:px-10 md:py-28 ${className}`}
+      className={`relative w-full px-6 py-16 sm:py-24 md:px-10 md:py-28 ${className}`}
     >
       <div className="mx-auto max-w-6xl">
         {(eyebrow || title || lede) && (

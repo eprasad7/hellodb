@@ -3,10 +3,10 @@ import { Section } from "./section";
 export function BrainLoop() {
   const steps = [
     { label: "write", time: "0ms", body: "hellodb_note returns instantly. The agent never waits." },
-    { label: "digest", time: "Haiku sub-agent", body: "memory-digest runs on Stop hook. Pure episodes → facts transform." },
-    { label: "draft branch", time: "branched", body: "Facts land on claude.facts/agent-digest-{ts}. Main is untouched." },
-    { label: "review", time: "one approve", body: "/hellodb:review shows you the diff. Merge or reject." },
-    { label: "recall", time: "semantic", body: "Future sessions hit the merged fact via vector recall + decay." },
+    { label: "digest", time: "Haiku sub-agent", body: "memory-digest extracts facts from episodes and scores each with a confidence." },
+    { label: "score", time: "≥ 0.75 auto", body: "High confidence → merges straight to main. Low or superseding → held for review." },
+    { label: "review", time: "edge cases only", body: "/hellodb:review shows only the uncertain ones. Empty most days." },
+    { label: "recall", time: "semantic", body: "Future sessions hit merged facts via vector recall + decay reinforcement." },
   ];
 
   return (
@@ -14,12 +14,12 @@ export function BrainLoop() {
       eyebrow="the loop"
       title={
         <>
-          The write path is <span className="italic text-accent">instant.</span>
+          Install it. <span className="italic text-accent">Forget it&apos;s there.</span>
           <br />
-          Nothing lands without your review.
+          You only review what&apos;s uncertain.
         </>
       }
-      lede="Two Haiku-backed sub-agents do the work. memory-digest extracts durable facts from episodes; memory-consolidate deduplicates and reinforces over time. Both run inside Claude Code on your subscription — zero extra infra."
+      lede="Two Haiku-backed sub-agents do the work. memory-digest scores every fact; high-confidence merges auto-land on main, low-confidence and superseding edits wait for your review. Default threshold 0.75, tunable in brain.toml. Zero extra infra — everything runs inside Claude Code on your subscription."
     >
       <div className="rounded-[var(--radius-card)] border border-border bg-bg-sunken/60 p-6 sm:p-8">
         {/* Desktop: horizontal track */}

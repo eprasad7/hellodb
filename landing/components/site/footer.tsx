@@ -2,7 +2,7 @@ export function Footer() {
   return (
     <footer className="relative w-full border-t border-border px-6 py-12 md:px-10 md:py-14">
       <div className="mx-auto max-w-6xl">
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-10 lg:grid-cols-[2fr_1fr_1fr_1fr]">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-10 lg:grid-cols-[2fr_1fr_1fr]">
           <div>
             <div className="font-mono text-[15px] tracking-tight text-fg">
               <span className="text-accent">›</span> hellodb
@@ -35,15 +35,9 @@ export function Footer() {
               gateway worker
             </FooterLink>
           </FooterCol>
-
-          <FooterCol title="philosophy">
-            <FooterLink href="#diagram">no shared infra</FooterLink>
-            <FooterLink href="#install">your keys</FooterLink>
-            <FooterLink href="#diagram">open in the wild</FooterLink>
-          </FooterCol>
         </div>
 
-        <div className="mt-10 flex flex-col items-start justify-between gap-4 border-t border-border pt-5 text-[12px] text-fg-subtle sm:flex-row sm:items-center">
+        <div className="mt-10 flex flex-col items-start justify-between gap-4 border-t border-border pt-5 text-[12px] text-fg-muted sm:flex-row sm:items-center">
           <div className="font-mono">
             built fast, kept thin — design and copy iterated in-Claude. inspired
             by the same playbook that produced supermemory.ai.
@@ -67,7 +61,7 @@ function FooterCol({
       <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.16em] text-fg-subtle">
         {title}
       </div>
-      <ul className="flex flex-col gap-2">{children}</ul>
+      <ul className="flex flex-col">{children}</ul>
     </div>
   );
 }
@@ -81,6 +75,8 @@ function FooterLink({
   children: React.ReactNode;
   external?: boolean;
 }) {
+  const className =
+    "-mx-2 inline-flex min-h-11 items-center rounded-md px-2 py-1 font-mono text-[13px] text-fg-muted transition-colors hover:text-fg";
   if (external) {
     return (
       <li>
@@ -88,7 +84,7 @@ function FooterLink({
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-mono text-[13px] text-fg-muted transition-colors hover:text-fg"
+          className={className}
         >
           {children}
         </a>
@@ -97,10 +93,7 @@ function FooterLink({
   }
   return (
     <li>
-      <a
-        href={href}
-        className="font-mono text-[13px] text-fg-muted transition-colors hover:text-fg"
-      >
+      <a href={href} className={className}>
         {children}
       </a>
     </li>

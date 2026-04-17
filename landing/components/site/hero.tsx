@@ -21,9 +21,10 @@ export function Hero() {
           </h1>
 
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-fg-muted text-pretty">
-            Local-first. End-to-end encrypted. Branchable. The brain digests
-            episodes into facts on a draft branch you review before merge.
-            You own the keys, the data, and the bill.
+            Local-first. End-to-end encrypted. Branchable. Two sub-agents
+            distill your sessions into facts — high-confidence ones merge
+            auto, uncertain ones wait for one-click review. You own the
+            keys, the data, and the bill.
           </p>
 
           <div className="mt-8 w-full max-w-md">
@@ -54,9 +55,9 @@ export function Hero() {
             >
               github ↗
             </a>
-            <span className="ml-1 font-mono text-[12px] text-fg-subtle">
-              MIT · Rust · MCP-native · macOS · Linux · Windows
-            </span>
+          </div>
+          <div className="mt-4 font-mono text-[12px] text-fg-muted">
+            MIT · Rust · MCP-native · macOS · Linux · Windows
           </div>
         </div>
 
@@ -67,7 +68,7 @@ export function Hero() {
       </div>
 
       <div className="mx-auto mt-10 max-w-6xl md:mt-14">
-        <div className="grid grid-cols-2 gap-3 rounded-[var(--radius-card)] border border-border bg-bg-elevated/30 p-4 sm:grid-cols-4 md:p-6">
+        <div className="grid grid-cols-2 gap-4 rounded-[var(--radius-card)] border border-border bg-bg-elevated/30 p-4 sm:grid-cols-4 sm:gap-3 md:p-6">
           {[
             { value: "0ms", label: "write path" },
             { value: "384d", label: "semantic recall" },
@@ -76,12 +77,12 @@ export function Hero() {
           ].map((s) => (
             <div
               key={s.label}
-              className="flex flex-col items-start gap-1 px-3 py-2"
+              className="flex flex-col items-start gap-1 px-1 py-2 sm:px-3"
             >
-              <div className="font-display text-3xl text-accent sm:text-4xl">
+              <div className="font-display text-[28px] leading-none text-accent sm:text-3xl md:text-4xl">
                 {s.value}
               </div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-fg-subtle">
+              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-fg-muted sm:text-[11px]">
                 {s.label}
               </div>
             </div>

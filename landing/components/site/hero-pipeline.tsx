@@ -9,12 +9,12 @@ export function HeroPipeline() {
     { x: 70, label: "note", desc: "instant", state: "done", tip: "hellodb_note returns in 0ms — agent never blocks" },
     { x: 215, label: "brain", desc: "digests", state: "active", tip: "Brain runs on Stop hook, distills episodes into facts" },
     { x: 360, label: "draft", desc: "branched", state: "next", tip: "Facts land on draft/yyyy-mm-dd-brain (not main)" },
-    { x: 505, label: "merged", desc: "approved", state: "next", tip: "/hellodb:review — one approve to merge" },
+    { x: 505, label: "merged", desc: "≥ 0.75 auto", state: "next", tip: "High-confidence auto-merge, low held for review" },
     { x: 650, label: "recall", desc: "semantic", state: "next", tip: "Cosine similarity + time-decay reinforcement" },
   ];
 
   return (
-    <div className="relative w-full overflow-hidden rounded-[var(--radius-card)] border border-border bg-bg-sunken/60 p-6 ring-amber">
+    <div className="relative w-full overflow-hidden rounded-[var(--radius-card)] border border-border bg-bg-sunken/60 p-6">
       <div className="mb-4 flex items-center justify-between">
         <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-fg-subtle">
           episode lifecycle

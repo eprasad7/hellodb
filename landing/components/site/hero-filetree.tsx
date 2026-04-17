@@ -3,8 +3,8 @@ export function HeroFiletree() {
     { name: "identity.key", note: "ed25519 · in OS keychain", tone: "accent" },
     { name: "db.sqlite", note: "SQLCipher · ChaCha20-Poly1305" },
     { name: "vec/code/hellodb/", note: "encrypted vector index, 384d" },
-    { name: "branches/main/", note: "merged facts" },
-    { name: "branches/draft/", note: "awaiting your review", tone: "accent" },
+    { name: "branches/main/", note: "auto-merged facts (≥ 0.75)" },
+    { name: "branches/digest-*/", note: "uncertain — awaiting review", tone: "accent" },
     { name: "brain.toml", note: "digest gates, decay tuning" },
     { name: "wal/", note: "write-ahead log" },
   ];
@@ -12,10 +12,10 @@ export function HeroFiletree() {
   return (
     <div className="relative w-full overflow-hidden rounded-[var(--radius-card)] border border-border bg-bg-sunken/60 p-6">
       <div className="mb-4 flex items-center justify-between">
-        <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-fg-subtle">
+        <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-fg-muted">
           ~/.hellodb
         </div>
-        <div className="font-mono text-[11px] text-fg-subtle">your machine</div>
+        <div className="font-mono text-[11px] text-fg-muted">your machine</div>
       </div>
 
       <div className="overflow-hidden rounded-md border border-border bg-bg-elevated/40 font-mono text-[12.5px]">
@@ -39,7 +39,7 @@ export function HeroFiletree() {
         ))}
       </div>
 
-      <p className="mt-4 font-mono text-[11px] leading-relaxed text-fg-subtle">
+      <p className="mt-4 font-mono text-[11px] leading-relaxed text-fg-muted">
         Everything hellodb writes lives here. No telemetry, no shadow uploads.
         Delete the folder and it&apos;s gone — keys included.
       </p>

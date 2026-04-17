@@ -7,7 +7,8 @@ export const dynamic = "force-static";
 
 const BG = "#1a1815";
 const FG = "#f1efea";
-const FG_MUTED = "#8b8779";
+const FG_MUTED = "#a29c8e";
+const FG_SUBTLE = "#8b8779";
 const ACCENT = "#e0a96d";
 
 export default function Image() {
@@ -20,7 +21,7 @@ export default function Image() {
           background: BG,
           display: "flex",
           flexDirection: "column",
-          padding: "72px 80px",
+          padding: "64px 80px",
           fontFamily: "ui-serif, Georgia, serif",
           position: "relative",
         }}
@@ -33,36 +34,50 @@ export default function Image() {
               "radial-gradient(60% 50% at 80% 0%, rgba(224,169,109,0.18), transparent 70%)",
           }}
         />
+
+        {/* Top — wordmark row */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 14,
+            justifyContent: "space-between",
             fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-            fontSize: 28,
-            color: FG,
+            fontSize: 26,
           }}
         >
-          <span style={{ color: ACCENT }}>›</span>
-          <span>hellodb</span>
-          <span style={{ color: FG_MUTED, fontSize: 22, marginLeft: 16 }}>
-            v0.1.0 · phase 1 shipped
-          </span>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              color: FG,
+            }}
+          >
+            <span style={{ color: ACCENT }}>›</span>
+            <span>hellodb</span>
+            <span style={{ color: FG_SUBTLE, fontSize: 20, marginLeft: 16 }}>
+              v0.1.0
+            </span>
+          </div>
+          <div style={{ display: "flex", color: FG_SUBTLE, fontSize: 20 }}>
+            sovereign memory for Claude Code
+          </div>
         </div>
 
+        {/* Middle — headline */}
         <div
           style={{
             display: "flex",
             flexDirection: "column",
-            marginTop: 96,
-            fontSize: 110,
-            lineHeight: 1.02,
+            marginTop: 72,
+            fontSize: 112,
+            lineHeight: 0.98,
             color: FG,
-            letterSpacing: -1,
+            letterSpacing: -1.5,
           }}
         >
           <div style={{ display: "flex" }}>Sovereign memory</div>
-          <div style={{ display: "flex", gap: 24 }}>
+          <div style={{ display: "flex", gap: 28 }}>
             <span>for</span>
             <span style={{ fontStyle: "italic", color: ACCENT }}>
               Claude Code.
@@ -70,28 +85,27 @@ export default function Image() {
           </div>
         </div>
 
+        {/* Tagline — single line */}
         <div
           style={{
             display: "flex",
-            marginTop: 56,
-            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-            fontSize: 26,
+            marginTop: 36,
+            fontSize: 28,
             color: FG_MUTED,
-            letterSpacing: 0.2,
           }}
         >
-          local-first · end-to-end encrypted · branchable · MCP-native
+          Local-first. Encrypted. You review only the uncertain.
         </div>
 
+        {/* Bottom — install pill + tech chips */}
         <div
           style={{
             marginTop: "auto",
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "flex-end",
+            alignItems: "center",
             fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
             fontSize: 22,
-            color: FG_MUTED,
           }}
         >
           <div
@@ -108,7 +122,22 @@ export default function Image() {
             <span>$</span>
             <span>curl -fsSL hellodb.dev/install | sh</span>
           </div>
-          <div>your machine · your Cloudflare · ~$0</div>
+          <div
+            style={{
+              display: "flex",
+              gap: 18,
+              color: FG_SUBTLE,
+              fontSize: 18,
+            }}
+          >
+            <span>MIT</span>
+            <span>·</span>
+            <span>Rust</span>
+            <span>·</span>
+            <span>MCP</span>
+            <span>·</span>
+            <span>~$0/mo</span>
+          </div>
         </div>
       </div>
     ),

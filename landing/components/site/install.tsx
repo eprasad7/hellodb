@@ -36,16 +36,15 @@ export function Install() {
               </div>
             </div>
           </Terminal>
-          <p className="mt-3 font-mono text-[12px] leading-relaxed text-fg-subtle">
+          <p className="mt-3 font-mono text-[12px] leading-relaxed text-fg-muted">
             One script. Detects your platform, fetches the right release,
-            generates an Ed25519 identity, and registers five slash commands:{" "}
-            <span className="text-accent">/hellodb:memorize</span> (capture),{" "}
-            <span className="text-accent">/hellodb:recall</span> (semantic
-            lookup), <span className="text-accent">/hellodb:review</span>{" "}
-            (approve digests), plus{" "}
-            <span className="text-accent">/hellodb:digest-now</span> and{" "}
-            <span className="text-accent">/hellodb:consolidate-now</span> for
-            the memory sub-agents.
+            generates an Ed25519 identity. Installs{" "}
+            <span className="text-accent">5 skills</span>,{" "}
+            <span className="text-accent">2 sub-agents</span>{" "}
+            (memory-digest + memory-consolidate, Haiku-backed), a Stop hook,
+            and <span className="text-accent">17+ MCP tools</span> covering
+            namespaces, schemas, branches, vector upsert/recall, embed, and
+            Claude Code memory interop.
           </p>
         </div>
 
@@ -80,7 +79,7 @@ export function Install() {
               </div>
             </div>
           </Terminal>
-          <p className="mt-3 font-mono text-[12px] leading-relaxed text-fg-subtle">
+          <p className="mt-3 font-mono text-[12px] leading-relaxed text-fg-muted">
             wrangler stores the OAuth token in your OS keychain — hellodb never
             sees it. Rotate the gateway bearer anytime with{" "}
             <span className="text-accent">make rotate-gateway-token</span>.
@@ -88,20 +87,38 @@ export function Install() {
         </div>
       </div>
 
-      <div className="mt-10 rounded-xl border border-border bg-bg-elevated/30 p-5">
-        <div className="mb-2 font-mono text-[11px] uppercase tracking-[0.16em] text-accent-muted">
-          alternative · build from source
+      <div className="mt-10 grid gap-4 md:grid-cols-2">
+        <div className="rounded-xl border border-border bg-bg-elevated/30 p-5">
+          <div className="mb-2 font-mono text-[11px] uppercase tracking-[0.16em] text-accent-muted">
+            alternative · build from source
+          </div>
+          <div className="font-mono text-[13px] text-fg-muted [overflow-wrap:anywhere]">
+            <span className="select-none text-accent">$</span> git clone
+            https://github.com/eprasad7/hellodb &amp;&amp; cd hellodb &amp;&amp;
+            make onboard
+          </div>
+          <p className="mt-2 font-mono text-[11px] leading-relaxed text-fg-muted">
+            Detects Rust, builds release, bundles the plugin, registers it with
+            Claude Code, runs <span className="text-accent">hellodb init</span>,
+            and offers (y/N) the Cloudflare setup. One prompt, one install.
+          </p>
         </div>
-        <div className="font-mono text-[13px] text-fg-muted">
-          <span className="select-none text-accent">$</span> git clone
-          https://github.com/eprasad7/hellodb &amp;&amp; cd hellodb &amp;&amp;
-          make onboard
+
+        <div className="rounded-xl border border-border bg-bg-elevated/30 p-5">
+          <div className="mb-2 font-mono text-[11px] uppercase tracking-[0.16em] text-accent-muted">
+            bonus · import existing Claude Code memory
+          </div>
+          <div className="font-mono text-[13px] text-fg-muted [overflow-wrap:anywhere]">
+            <span className="select-none text-accent">$</span> hellodb ingest
+            --from-claudemd
+          </div>
+          <p className="mt-2 font-mono text-[11px] leading-relaxed text-fg-muted">
+            Walks <span className="text-accent">~/.claude/projects/*/memory/*.md</span>,
+            writes one signed record per file, dedupes on re-run. Query back
+            via <span className="text-accent">hellodb_find_relevant_memories</span>{" "}
+            from any MCP client — hybrid ranking, decay-aware.
+          </p>
         </div>
-        <p className="mt-2 font-mono text-[11px] text-fg-subtle">
-          Detects Rust, builds release, bundles the plugin, registers it with
-          Claude Code, runs <span className="text-accent">hellodb init</span>,
-          and offers (y/N) the Cloudflare setup. One prompt, one install.
-        </p>
       </div>
     </Section>
   );
