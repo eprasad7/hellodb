@@ -12,23 +12,64 @@ const MAX_LIST_LIMIT = 1000;
 export const r2 = new Hono<{ Bindings: Env }>();
 
 /**
- * Extract the raw object key from a path like `/r2/foo/bar`. We preserve the
- * remainder verbatim so callers can use `/` in keys (e.g. nested namespaces).
+ * Extract and validate the object key from a path like `/r2/foo/bar`.
+ *
+ * R2 buckets are flat namespaces, so `..` doesn't escape anything filesystem-
+ * style — but the Rust client (hellodb-sync) uses PREFIX semantics on list
+ * results, and a key containing `..` can shadow sibling prefixes in ways the
+ * client doesn't expect. Plus, these guards are cheap defense-in-depth in case
+ * a future caller passes user-controlled input into an R2 path.
+ *
+ * Applied after URL-decoding (otherwise `%00`, `%2e%2e`, etc. bypass the checks):
+ *   - Reject embedded NUL / control chars (decoded, not raw).
+ *   - Reject any path segment equal to `.` or `..`.
+ *   - Reject leading `/`.
+ *   - Enforce a conservative charset allowlist the Rust side actually uses.
+ *   - Enforce a sane max length (R2's own limit is 1024 bytes, we use 512).
  */
+const KEY_CHARSET_RE = /^[A-Za-z0-9/._-]+$/;
+const KEY_MAX_LEN = 512;
+
 function extractKey(path: string): string | null {
-  // Strip leading `/r2/` (or `/r2` with no trailing slash — list endpoint).
+  // Strip leading `/r2/`. The list endpoint is `/r2` with no trailing slash
+  // and handled separately, so any match here implies a non-empty remainder.
   const match = /^\/r2\/(.+)$/.exec(path);
   if (!match) return null;
-  const key = match[1];
-  if (!key || key.length === 0) return null;
-  // Reject obvious traversal or control chars. R2 itself allows most strings
-  // but we keep this conservative.
-  if (key.includes("\0")) return null;
+  const raw = match[1];
+  if (!raw || raw.length === 0) return null;
+
+  let decoded: string;
   try {
-    return decodeURIComponent(key);
+    decoded = decodeURIComponent(raw);
   } catch {
     return null;
   }
+
+  // Control chars (0x00-0x1F, 0x7F) reject. These would never be valid in a
+  // content-addressed key and are commonly used in path-injection attacks.
+  // IMPORTANT: run this on the DECODED string so `%00` is caught.
+  if (/[\x00-\x1f\x7f]/.test(decoded)) return null;
+
+  // Reject leading slash (would make the key absolute-looking in some R2
+  // tooling output) and trailing whitespace.
+  if (decoded.startsWith("/")) return null;
+
+  // No traversal-like segments — R2 stores them literally but the Rust side's
+  // prefix-based list logic would get surprised.
+  const segments = decoded.split("/");
+  for (const seg of segments) {
+    if (seg === "." || seg === "..") return null;
+    if (seg.length === 0) return null; // rejects `//` empty segments too
+  }
+
+  // Length cap; R2's hard limit is 1024, we stay well under.
+  if (decoded.length > KEY_MAX_LEN) return null;
+
+  // Conservative charset. Content-addressed keys from hellodb-sync only ever
+  // use `[A-Za-z0-9/._-]`, which is enforced on the Rust side too.
+  if (!KEY_CHARSET_RE.test(decoded)) return null;
+
+  return decoded;
 }
 
 /** GET /r2?prefix=...&cursor=...&limit=... — list keys. */

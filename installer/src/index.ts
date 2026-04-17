@@ -100,13 +100,21 @@ async function serveInstall(env: Env, flavor: "sh" | "ps1"): Promise<Response> {
   });
 }
 
+// Detect a PowerShell / iwr / Invoke-WebRequest caller from the User-Agent so
+// `iwr hellodb.dev/install | iex` on Windows lands on the .ps1 without the
+// user having to remember the extension.
+//
+// Do NOT match "windowsnt": every Chrome/Edge/Firefox on Windows sends
+// `Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...`. Browsers visiting the page
+// should get the default .sh source (users want to read before they pipe),
+// not a text/plain .ps1. PowerShell's own UA strings are explicit enough:
+// "PowerShell/7.x" (Core), "WindowsPowerShell/5.1.x" (built-in), or the
+// literal "Invoke-WebRequest" hint.
 function isPowershellUa(req: Request): boolean {
   const ua = (req.headers.get("user-agent") || "").toLowerCase();
   return (
-    ua.includes("powershell") ||
-    ua.includes("windowspowershell") ||
-    ua.includes("invoke-webrequest") ||
-    ua.includes("windowsnt")
+    ua.includes("powershell") || // matches both "PowerShell" and "WindowsPowerShell"
+    ua.includes("invoke-webrequest")
   );
 }
 

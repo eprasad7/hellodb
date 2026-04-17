@@ -169,11 +169,44 @@ embed.post("/embed", async (c) => {
     return errorResponse(c, 502, "embed_failed", "Embedding provider returned no data");
   }
 
+  // Critical correctness check: Workers AI must return exactly one embedding
+  // per input text, in the same order. If the count differs, the Rust client
+  // would silently mis-align embeddings with record_ids at upsert time —
+  // i.e., store fact A's vector under fact B's id. Fail loudly instead.
+  if (response.data.length !== texts.length) {
+    console.error("workers-ai batch size mismatch", {
+      model: input.model,
+      requested: texts.length,
+      returned: response.data.length,
+    });
+    return errorResponse(
+      c,
+      502,
+      "embed_batch_mismatch",
+      `Provider returned ${response.data.length} embeddings for ${texts.length} texts`,
+    );
+  }
+
   const first = response.data[0];
   if (!Array.isArray(first)) {
     return errorResponse(c, 502, "embed_failed", "Embedding provider returned malformed data");
   }
   const dim = first.length;
+
+  // Also verify every embedding has the same dim — guards against partial
+  // corruption that would otherwise be caught only at upsert time.
+  for (let i = 1; i < response.data.length; i++) {
+    const row = response.data[i];
+    if (!Array.isArray(row) || row.length !== dim) {
+      console.error("workers-ai dim mismatch within batch", {
+        model: input.model,
+        i,
+        expected: dim,
+        got: Array.isArray(row) ? row.length : "non-array",
+      });
+      return errorResponse(c, 502, "embed_dim_mismatch", "Provider returned inconsistent dims");
+    }
+  }
 
   if (input.kind === "single") {
     return c.json({ embedding: first, dim, model: input.model });
