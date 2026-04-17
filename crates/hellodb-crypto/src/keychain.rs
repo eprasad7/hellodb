@@ -7,7 +7,7 @@
 
 use zeroize::Zeroize;
 
-use crate::encryption::{SealedBox, seal_with_key, open_with_key};
+use crate::encryption::{open_with_key, seal_with_key, SealedBox};
 use crate::error::CryptoError;
 
 /// Device master key. 32 bytes of high-entropy secret material.

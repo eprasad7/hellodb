@@ -14,26 +14,12 @@ use crate::error::StorageError;
 /// A WAL entry representing a single mutation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WalEntry {
-    PutRecord {
-        record_json: String,
-        branch: String,
-    },
-    DeleteRecord {
-        record_id: String,
-        branch: String,
-    },
-    CreateNamespace {
-        namespace_json: String,
-    },
-    CreateBranch {
-        branch_json: String,
-    },
-    MergeBranch {
-        branch_id: String,
-    },
-    RegisterSchema {
-        schema_json: String,
-    },
+    PutRecord { record_json: String, branch: String },
+    DeleteRecord { record_id: String, branch: String },
+    CreateNamespace { namespace_json: String },
+    CreateBranch { branch_json: String },
+    MergeBranch { branch_id: String },
+    RegisterSchema { schema_json: String },
 }
 
 /// WAL transaction: a batch of entries that must be applied atomically.

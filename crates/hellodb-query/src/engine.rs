@@ -41,7 +41,9 @@ impl<'a> QueryEngine<'a> {
             .namespace
             .as_deref()
             .or_else(|| branch.split('/').next())
-            .ok_or_else(|| QueryError::NamespaceNotFound("no namespace in query or branch".into()))?;
+            .ok_or_else(|| {
+                QueryError::NamespaceNotFound("no namespace in query or branch".into())
+            })?;
 
         // Access check
         let namespace = self
@@ -127,7 +129,9 @@ impl<'a> QueryEngine<'a> {
             .namespace
             .as_deref()
             .or_else(|| branch.split('/').next())
-            .ok_or_else(|| QueryError::NamespaceNotFound("no namespace in query or branch".into()))?;
+            .ok_or_else(|| {
+                QueryError::NamespaceNotFound("no namespace in query or branch".into())
+            })?;
 
         let namespace = self
             .storage
@@ -153,12 +157,7 @@ impl<'a> QueryEngine<'a> {
         let candidates = self.fetch_candidates(query, branch)?;
         let filtered: Vec<_> = candidates
             .into_iter()
-            .filter(|r| {
-                query
-                    .filter
-                    .as_ref()
-                    .is_none_or(|f| f.matches(r))
-            })
+            .filter(|r| query.filter.as_ref().is_none_or(|f| f.matches(r)))
             .collect();
         Ok(filtered.len() as u64)
     }
@@ -168,11 +167,7 @@ impl<'a> QueryEngine<'a> {
     // -----------------------------------------------------------------------
 
     /// Fetch candidate records from storage based on query scope.
-    fn fetch_candidates(
-        &self,
-        query: &Query,
-        branch: &str,
-    ) -> Result<Vec<Record>, QueryError> {
+    fn fetch_candidates(&self, query: &Query, branch: &str) -> Result<Vec<Record>, QueryError> {
         // Use the most specific index available
         let records = if let Some(schema) = &query.schema {
             self.storage
@@ -182,10 +177,7 @@ impl<'a> QueryEngine<'a> {
                 .list_records_by_namespace(namespace, branch, usize::MAX, 0)?
         } else {
             // Fallback: infer namespace from branch ID (format: "namespace/branch_name")
-            let namespace = branch
-                .split('/')
-                .next()
-                .unwrap_or(branch);
+            let namespace = branch.split('/').next().unwrap_or(branch);
             self.storage
                 .list_records_by_namespace(namespace, branch, usize::MAX, 0)?
         };
@@ -262,7 +254,7 @@ mod tests {
     use hellodb_auth::{
         AccessGate, ConsentAction, ConsentProof, DelegationCredential, DelegationScope,
     };
-    use hellodb_core::{Namespace, Record, Schema, SchemaField, FieldType};
+    use hellodb_core::{FieldType, Namespace, Record, Schema, SchemaField};
     use hellodb_crypto::KeyPair;
     use hellodb_storage::MemoryEngine;
     use serde_json::json;
@@ -289,9 +281,24 @@ mod tests {
             namespace: "commerce".into(),
             name: "Listing".into(),
             fields: vec![
-                SchemaField { name: "title".into(), field_type: FieldType::String, required: true, description: None },
-                SchemaField { name: "price".into(), field_type: FieldType::Float, required: true, description: None },
-                SchemaField { name: "currency".into(), field_type: FieldType::String, required: true, description: None },
+                SchemaField {
+                    name: "title".into(),
+                    field_type: FieldType::String,
+                    required: true,
+                    description: None,
+                },
+                SchemaField {
+                    name: "price".into(),
+                    field_type: FieldType::Float,
+                    required: true,
+                    description: None,
+                },
+                SchemaField {
+                    name: "currency".into(),
+                    field_type: FieldType::String,
+                    required: true,
+                    description: None,
+                },
             ],
             registered_at_ms: 1000,
         };
@@ -429,10 +436,7 @@ mod tests {
 
         assert_eq!(page2.records.len(), 2);
         // Should not overlap with page 1
-        assert_ne!(
-            page1.records[0].record_id,
-            page2.records[0].record_id,
-        );
+        assert_ne!(page1.records[0].record_id, page2.records[0].record_id,);
     }
 
     #[test]
@@ -510,7 +514,10 @@ mod tests {
         let deleg = DelegationCredential::new(
             &owner.signing,
             agent.verifying.clone(),
-            vec![DelegationScope::CrossNamespaceQuery, DelegationScope::ReadNamespace],
+            vec![
+                DelegationScope::CrossNamespaceQuery,
+                DelegationScope::ReadNamespace,
+            ],
             vec!["commerce".into(), "health".into()],
             1000,
             3600_000,
@@ -561,7 +568,9 @@ mod tests {
         // Unfiltered count (uses optimized path)
         let count = qe
             .count(
-                &Query::new().schema("commerce.listing").namespace("commerce"),
+                &Query::new()
+                    .schema("commerce.listing")
+                    .namespace("commerce"),
                 &owner.verifying,
                 "commerce/main",
                 5000,
@@ -591,7 +600,9 @@ mod tests {
 
         let result = qe
             .execute(
-                &Query::new().schema("commerce.listing").namespace("commerce"),
+                &Query::new()
+                    .schema("commerce.listing")
+                    .namespace("commerce"),
                 &owner.verifying,
                 "commerce/main",
                 5000,

@@ -85,12 +85,7 @@ impl Branch {
     }
 
     /// Create a new branch off a parent.
-    pub fn new(
-        id: BranchId,
-        namespace: NamespaceId,
-        parent: BranchId,
-        label: String,
-    ) -> Self {
+    pub fn new(id: BranchId, namespace: NamespaceId, parent: BranchId, label: String) -> Self {
         let created_at_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -134,10 +129,7 @@ impl Branch {
 
     /// Attempt a fast-forward merge. Returns records that would be merged
     /// and any conflicts (records changed on both branches).
-    pub fn fast_forward_merge(
-        &self,
-        target: &Branch,
-    ) -> Result<MergeResult, CoreError> {
+    pub fn fast_forward_merge(&self, target: &Branch) -> Result<MergeResult, CoreError> {
         if self.state != BranchState::Active {
             return Err(CoreError::BranchNotActive(self.id.clone()));
         }

@@ -82,12 +82,7 @@ impl SyncBackend for FileSystemSyncBackend {
 
 impl FileSystemSyncBackend {
     /// Recursively walk a directory collecting blob keys that match the prefix.
-    fn walk_dir(
-        &self,
-        dir: &Path,
-        prefix: &str,
-        keys: &mut Vec<String>,
-    ) -> Result<(), SyncError> {
+    fn walk_dir(&self, dir: &Path, prefix: &str, keys: &mut Vec<String>) -> Result<(), SyncError> {
         if !dir.is_dir() {
             return Ok(());
         }

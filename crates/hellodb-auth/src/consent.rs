@@ -6,8 +6,8 @@
 use hellodb_crypto::{content_hash, Signature, SigningKey, VerifyingKey};
 use serde::{Deserialize, Serialize};
 
-use hellodb_core::canonical::canonicalize_value;
 use crate::error::AuthError;
+use hellodb_core::canonical::canonicalize_value;
 
 /// Actions that require consent in hellodb.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -111,8 +111,8 @@ impl<'de> Deserialize<'de> for EncryptionKey {
 
 /// Encrypt plaintext with a shared secret (ChaCha20-Poly1305).
 pub fn seal(shared: &SharedSecret, plaintext: &[u8]) -> SealedBox {
-    let cipher = ChaCha20Poly1305::new_from_slice(&shared.0)
-        .expect("shared secret is always 32 bytes");
+    let cipher =
+        ChaCha20Poly1305::new_from_slice(&shared.0).expect("shared secret is always 32 bytes");
 
     let mut nonce_bytes = [0u8; 12];
     rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
@@ -130,8 +130,8 @@ pub fn seal(shared: &SharedSecret, plaintext: &[u8]) -> SealedBox {
 
 /// Decrypt ciphertext with a shared secret.
 pub fn open(shared: &SharedSecret, sealed: &SealedBox) -> Result<Vec<u8>, CryptoError> {
-    let cipher = ChaCha20Poly1305::new_from_slice(&shared.0)
-        .expect("shared secret is always 32 bytes");
+    let cipher =
+        ChaCha20Poly1305::new_from_slice(&shared.0).expect("shared secret is always 32 bytes");
 
     let nonce = Nonce::from_slice(&sealed.nonce);
 

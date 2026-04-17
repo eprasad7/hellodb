@@ -31,11 +31,7 @@ pub struct SyncConflict {
 /// Resolve a conflict using the given strategy.
 ///
 /// Returns the winning record.
-pub fn resolve_conflict(
-    strategy: ConflictStrategy,
-    local: &Record,
-    remote: &Record,
-) -> Record {
+pub fn resolve_conflict(strategy: ConflictStrategy, local: &Record, remote: &Record) -> Record {
     match strategy {
         ConflictStrategy::LastWriterWins => {
             if remote.created_at_ms >= local.created_at_ms {

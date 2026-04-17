@@ -35,12 +35,7 @@ pub struct Namespace {
 
 impl Namespace {
     /// Create a new namespace.
-    pub fn new(
-        id: String,
-        name: String,
-        owner: VerifyingKey,
-        encrypted: bool,
-    ) -> Self {
+    pub fn new(id: String, name: String, owner: VerifyingKey, encrypted: bool) -> Self {
         let created_at_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -94,12 +89,7 @@ mod tests {
     fn ownership_check() {
         let kp1 = KeyPair::generate();
         let kp2 = KeyPair::generate();
-        let ns = Namespace::new(
-            "test".into(),
-            "Test".into(),
-            kp1.verifying.clone(),
-            false,
-        );
+        let ns = Namespace::new("test".into(), "Test".into(), kp1.verifying.clone(), false);
         assert!(ns.is_owner(&kp1.verifying));
         assert!(!ns.is_owner(&kp2.verifying));
     }

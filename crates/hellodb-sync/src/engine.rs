@@ -70,9 +70,9 @@ impl<'a> SyncEngine<'a> {
         let mut manifest = self.load_or_create_manifest(namespace, backend)?;
 
         // Fetch records newer than last push
-        let all_records = self
-            .storage
-            .list_records_by_namespace(namespace, branch, usize::MAX, 0)?;
+        let all_records =
+            self.storage
+                .list_records_by_namespace(namespace, branch, usize::MAX, 0)?;
 
         let new_records: Vec<Record> = all_records
             .into_iter()
@@ -182,8 +182,7 @@ impl<'a> SyncEngine<'a> {
                 match existing {
                     None => {
                         // New record — just insert
-                        self.storage
-                            .put_record(remote_record.clone(), branch)?;
+                        self.storage.put_record(remote_record.clone(), branch)?;
                         total_merged += 1;
                     }
                     Some(local_record) => {
@@ -196,8 +195,7 @@ impl<'a> SyncEngine<'a> {
                             continue;
                         }
                         // Conflict: different content for same logical record
-                        let winner =
-                            resolve_conflict(strategy, &local_record, remote_record);
+                        let winner = resolve_conflict(strategy, &local_record, remote_record);
                         let conflict = SyncConflict {
                             record_id: remote_record.record_id.clone(),
                             local_record,
@@ -249,9 +247,9 @@ impl<'a> SyncEngine<'a> {
         let manifest = self.load_or_create_manifest_readonly(namespace, backend)?;
 
         // Count records newer than last push
-        let all_records = self
-            .storage
-            .list_records_by_namespace(namespace, branch, usize::MAX, 0)?;
+        let all_records =
+            self.storage
+                .list_records_by_namespace(namespace, branch, usize::MAX, 0)?;
 
         let pending = all_records
             .iter()
@@ -306,10 +304,7 @@ impl<'a> SyncEngine<'a> {
         manifest: &SyncManifest,
         backend: &mut dyn SyncBackend,
     ) -> Result<(), SyncError> {
-        let key = format!(
-            "{}/manifests/{}.json",
-            manifest.namespace, self.device_id
-        );
+        let key = format!("{}/manifests/{}.json", manifest.namespace, self.device_id);
         let bytes = serde_json::to_vec(manifest)?;
         backend.put_blob(&key, &bytes)?;
         Ok(())
@@ -326,10 +321,7 @@ mod tests {
     use serde_json::json;
 
     /// Helper: set up a storage engine with a namespace and some records.
-    fn setup_device(
-        _device_id: &str,
-        owner: &KeyPair,
-    ) -> MemoryEngine {
+    fn setup_device(_device_id: &str, owner: &KeyPair) -> MemoryEngine {
         let mut engine = MemoryEngine::new();
         let ns = Namespace::new(
             "commerce".into(),
@@ -368,8 +360,18 @@ mod tests {
         let mut engine = setup_device("device-a", &owner);
         let mut backend = MemorySyncBackend::new();
 
-        write_record(&mut engine, &owner, json!({"title": "Bowl", "price": 24.99}), 1000);
-        write_record(&mut engine, &owner, json!({"title": "Vase", "price": 55.0}), 2000);
+        write_record(
+            &mut engine,
+            &owner,
+            json!({"title": "Bowl", "price": 24.99}),
+            1000,
+        );
+        write_record(
+            &mut engine,
+            &owner,
+            json!({"title": "Vase", "price": 55.0}),
+            2000,
+        );
 
         let mut sync = SyncEngine::new(&mut engine, "device-a");
         let result = sync
@@ -407,8 +409,18 @@ mod tests {
 
         // Device A writes and pushes
         let mut engine_a = setup_device("device-a", &owner);
-        write_record(&mut engine_a, &owner, json!({"title": "Bowl", "price": 24.99}), 1000);
-        write_record(&mut engine_a, &owner, json!({"title": "Vase", "price": 55.0}), 2000);
+        write_record(
+            &mut engine_a,
+            &owner,
+            json!({"title": "Bowl", "price": 24.99}),
+            1000,
+        );
+        write_record(
+            &mut engine_a,
+            &owner,
+            json!({"title": "Vase", "price": 55.0}),
+            2000,
+        );
 
         {
             let mut sync_a = SyncEngine::new(&mut engine_a, "device-a");

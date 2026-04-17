@@ -4,16 +4,16 @@
 //! branch metadata, and canonicalization rules for the hellodb
 //! sovereign data layer.
 
+pub mod branch;
 pub mod canonical;
+pub mod error;
+pub mod namespace;
 pub mod record;
 pub mod schema;
-pub mod namespace;
-pub mod branch;
-pub mod error;
 
+pub use branch::{Branch, BranchId, BranchState, MergeConflict, MergeResult};
 pub use canonical::{canonicalize, canonicalize_value};
-pub use record::{Record, RecordId};
-pub use schema::{Schema, SchemaField, FieldType, SchemaRegistry};
-pub use namespace::{Namespace, NamespaceId};
-pub use branch::{Branch, BranchId, BranchState, MergeResult, MergeConflict};
 pub use error::CoreError;
+pub use namespace::{Namespace, NamespaceId};
+pub use record::{Record, RecordId};
+pub use schema::{FieldType, Schema, SchemaField, SchemaRegistry};

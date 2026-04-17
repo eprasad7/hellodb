@@ -4,16 +4,12 @@
 //! working together as the "inverse Lakebase" on a single device and
 //! across simulated multi-device sync.
 
-use hellodb_auth::{
-    AccessGate, DelegationCredential, DelegationScope,
-};
-use hellodb_core::{Namespace, Record, Schema, SchemaField, FieldType};
+use hellodb_auth::{AccessGate, DelegationCredential, DelegationScope};
+use hellodb_core::{FieldType, Namespace, Record, Schema, SchemaField};
 use hellodb_crypto::{KeyPair, MasterKey};
 use hellodb_query::{Filter, Query, QueryEngine, SortField};
 use hellodb_storage::{MemoryEngine, StorageEngine};
-use hellodb_sync::{
-    ConflictStrategy, MemorySyncBackend, SyncEngine,
-};
+use hellodb_sync::{ConflictStrategy, MemorySyncBackend, SyncEngine};
 use serde_json::json;
 
 // -------------------------------------------------------------------------
@@ -41,9 +37,24 @@ fn query_filter_sort_paginate() {
         namespace: "commerce".into(),
         name: "Listing".into(),
         fields: vec![
-            SchemaField { name: "title".into(), field_type: FieldType::String, required: true, description: None },
-            SchemaField { name: "price".into(), field_type: FieldType::Float, required: true, description: None },
-            SchemaField { name: "currency".into(), field_type: FieldType::String, required: true, description: None },
+            SchemaField {
+                name: "title".into(),
+                field_type: FieldType::String,
+                required: true,
+                description: None,
+            },
+            SchemaField {
+                name: "price".into(),
+                field_type: FieldType::Float,
+                required: true,
+                description: None,
+            },
+            SchemaField {
+                name: "currency".into(),
+                field_type: FieldType::String,
+                required: true,
+                description: None,
+            },
         ],
         registered_at_ms: 1000,
     };
@@ -148,12 +159,10 @@ fn query_filter_sort_paginate() {
     // 4. Range filter: 20 <= price <= 50
     let range = qe
         .execute(
-            &Query::new()
-                .namespace("commerce")
-                .filter(Filter::And(vec![
-                    Filter::Gte("price".into(), json!(20.0)),
-                    Filter::Lte("price".into(), json!(50.0)),
-                ])),
+            &Query::new().namespace("commerce").filter(Filter::And(vec![
+                Filter::Gte("price".into(), json!(20.0)),
+                Filter::Lte("price".into(), json!(50.0)),
+            ])),
             &owner.verifying,
             "commerce/main",
             5000,
@@ -232,7 +241,10 @@ fn cross_namespace_agent_query() {
     let deleg = DelegationCredential::new(
         &owner.signing,
         agent.verifying.clone(),
-        vec![DelegationScope::CrossNamespaceQuery, DelegationScope::ReadNamespace],
+        vec![
+            DelegationScope::CrossNamespaceQuery,
+            DelegationScope::ReadNamespace,
+        ],
         vec!["commerce".into(), "health".into()],
         1000,
         3600_000,

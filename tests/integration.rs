@@ -14,9 +14,7 @@
 use hellodb_auth::{
     AccessGate, ConsentAction, ConsentProof, DelegationCredential, DelegationScope,
 };
-use hellodb_core::{
-    Branch, FieldType, Namespace, Record, Schema, SchemaField, SchemaRegistry,
-};
+use hellodb_core::{Branch, FieldType, Namespace, Record, Schema, SchemaField, SchemaRegistry};
 use hellodb_crypto::{KeyPair, MasterKey};
 use hellodb_storage::{MemoryEngine, SqliteEngine, StorageEngine};
 
@@ -152,8 +150,14 @@ fn run_full_scenario(engine: &mut dyn StorageEngine) {
     engine.register_schema(heart_schema).unwrap();
 
     // Verify schema lookup
-    assert!(engine.get_schema("app_a.commerce.listing").unwrap().is_some());
-    assert!(engine.get_schema("health.vitals.heart_rate").unwrap().is_some());
+    assert!(engine
+        .get_schema("app_a.commerce.listing")
+        .unwrap()
+        .is_some());
+    assert!(engine
+        .get_schema("health.vitals.heart_rate")
+        .unwrap()
+        .is_some());
     assert!(engine.get_schema("nonexistent").unwrap().is_none());
 
     // Main branches are auto-created by create_namespace -- just get IDs
@@ -369,7 +373,10 @@ fn run_full_scenario(engine: &mut dyn StorageEngine) {
     let delegation = DelegationCredential::new(
         &device.signing,
         agent.verifying.clone(),
-        vec![DelegationScope::CrossNamespaceQuery, DelegationScope::ReadNamespace],
+        vec![
+            DelegationScope::CrossNamespaceQuery,
+            DelegationScope::ReadNamespace,
+        ],
         vec!["app_a.commerce".into(), "health.vitals".into()],
         1000,
         3600_000, // 1 hour
@@ -390,11 +397,8 @@ fn run_full_scenario(engine: &mut dyn StorageEngine) {
     agent_gate.add_delegation(delegation).unwrap();
 
     // Agent can query across both namespaces
-    let decision = agent_gate.check_cross_namespace_query(
-        &agent.verifying,
-        &[&commerce_ns, &health_ns],
-        5000,
-    );
+    let decision =
+        agent_gate.check_cross_namespace_query(&agent.verifying, &[&commerce_ns, &health_ns], 5000);
     assert!(
         decision.is_allowed(),
         "Agent should be allowed cross-namespace query"
@@ -601,7 +605,10 @@ fn integration_write_delegation() {
     let deleg = DelegationCredential::new(
         &user.signing,
         app.verifying.clone(),
-        vec![DelegationScope::WriteNamespace, DelegationScope::ReadNamespace],
+        vec![
+            DelegationScope::WriteNamespace,
+            DelegationScope::ReadNamespace,
+        ],
         vec!["shared.notes".into()],
         1000,
         3600_000,
@@ -725,7 +732,9 @@ fn integration_schema_validation() {
         "price": 9.99,
         "currency": "EUR"
     });
-    assert!(registry.validate_data("app_a.commerce.listing", &valid).is_ok());
+    assert!(registry
+        .validate_data("app_a.commerce.listing", &valid)
+        .is_ok());
 
     // Missing required field
     let missing_price = json!({
@@ -747,7 +756,9 @@ fn integration_schema_validation() {
         .is_err());
 
     // Unknown schema
-    assert!(registry.validate_data("nonexistent.schema", &valid).is_err());
+    assert!(registry
+        .validate_data("nonexistent.schema", &valid)
+        .is_err());
 }
 
 // ---------------------------------------------------------------------------

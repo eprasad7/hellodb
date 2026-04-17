@@ -67,10 +67,8 @@ fn compare_by_field(a: &Record, b: &Record, sf: &SortField) -> Ordering {
         let av = a.data.as_object().and_then(|o| o.get(&sf.field));
         let bv = b.data.as_object().and_then(|o| o.get(&sf.field));
         match (av, bv) {
-            (Some(a_val), Some(b_val)) => {
-                compare_values(a_val, b_val).unwrap_or(Ordering::Equal)
-            }
-            (Some(_), None) => Ordering::Less,    // present before absent
+            (Some(a_val), Some(b_val)) => compare_values(a_val, b_val).unwrap_or(Ordering::Equal),
+            (Some(_), None) => Ordering::Less, // present before absent
             (None, Some(_)) => Ordering::Greater,
             (None, None) => Ordering::Equal,
         }

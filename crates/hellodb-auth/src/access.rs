@@ -3,8 +3,8 @@
 //! Evaluates whether a given identity (app or agent) is allowed
 //! to perform a specific operation on a namespace.
 
-use hellodb_crypto::VerifyingKey;
 use hellodb_core::Namespace;
+use hellodb_crypto::VerifyingKey;
 
 use crate::consent::{ConsentAction, ConsentProof};
 use crate::delegation::{DelegationCredential, DelegationScope};
@@ -83,7 +83,7 @@ impl AccessGate {
                 match &consent.namespace {
                     Some(ns) if ns == &namespace.id => return AccessDecision::Allowed,
                     None => return AccessDecision::Allowed, // No namespace scope = all
-                    _ => {} // Wrong namespace, continue
+                    _ => {}                                 // Wrong namespace, continue
                 }
             }
         }
@@ -170,9 +170,7 @@ impl AccessGate {
                 && deleg.has_scope(&DelegationScope::CrossNamespaceQuery)
             {
                 // Check all requested namespaces are covered
-                let all_covered = namespaces
-                    .iter()
-                    .all(|ns| deleg.covers_namespace(&ns.id));
+                let all_covered = namespaces.iter().all(|ns| deleg.covers_namespace(&ns.id));
                 if all_covered {
                     return AccessDecision::Allowed;
                 }
@@ -314,11 +312,7 @@ mod tests {
         let mut gate = AccessGate::new();
         gate.add_delegation(deleg).unwrap();
 
-        let decision = gate.check_cross_namespace_query(
-            &agent.verifying,
-            &[&ns1, &ns2],
-            5000,
-        );
+        let decision = gate.check_cross_namespace_query(&agent.verifying, &[&ns1, &ns2], 5000);
         assert!(decision.is_allowed());
     }
 
@@ -343,11 +337,7 @@ mod tests {
         gate.add_delegation(deleg).unwrap();
 
         // Can't query finance
-        let decision = gate.check_cross_namespace_query(
-            &agent.verifying,
-            &[&ns_finance],
-            5000,
-        );
+        let decision = gate.check_cross_namespace_query(&agent.verifying, &[&ns_finance], 5000);
         assert!(!decision.is_allowed());
     }
 

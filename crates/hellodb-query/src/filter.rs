@@ -53,40 +53,30 @@ impl Filter {
     pub fn matches(&self, record: &Record) -> bool {
         match self {
             // Field predicates
-            Filter::Eq(field, val) => {
-                get_field(&record.data, field)
-                    .is_some_and(|v| v == val)
-            }
-            Filter::Ne(field, val) => {
-                get_field(&record.data, field)
-                    .is_none_or(|v| v != val)
-            }
-            Filter::Gt(field, val) => {
-                get_field(&record.data, field)
-                    .is_some_and(|v| compare_values(v, val) == Some(Ordering::Greater))
-            }
-            Filter::Lt(field, val) => {
-                get_field(&record.data, field)
-                    .is_some_and(|v| compare_values(v, val) == Some(Ordering::Less))
-            }
-            Filter::Gte(field, val) => {
-                get_field(&record.data, field)
-                    .is_some_and(|v| matches!(compare_values(v, val), Some(Ordering::Greater | Ordering::Equal)))
-            }
-            Filter::Lte(field, val) => {
-                get_field(&record.data, field)
-                    .is_some_and(|v| matches!(compare_values(v, val), Some(Ordering::Less | Ordering::Equal)))
-            }
-            Filter::Contains(field, substr) => {
-                get_field(&record.data, field)
-                    .and_then(|v| v.as_str())
-                    .is_some_and(|s| s.contains(substr.as_str()))
-            }
-            Filter::StartsWith(field, prefix) => {
-                get_field(&record.data, field)
-                    .and_then(|v| v.as_str())
-                    .is_some_and(|s| s.starts_with(prefix.as_str()))
-            }
+            Filter::Eq(field, val) => get_field(&record.data, field).is_some_and(|v| v == val),
+            Filter::Ne(field, val) => get_field(&record.data, field).is_none_or(|v| v != val),
+            Filter::Gt(field, val) => get_field(&record.data, field)
+                .is_some_and(|v| compare_values(v, val) == Some(Ordering::Greater)),
+            Filter::Lt(field, val) => get_field(&record.data, field)
+                .is_some_and(|v| compare_values(v, val) == Some(Ordering::Less)),
+            Filter::Gte(field, val) => get_field(&record.data, field).is_some_and(|v| {
+                matches!(
+                    compare_values(v, val),
+                    Some(Ordering::Greater | Ordering::Equal)
+                )
+            }),
+            Filter::Lte(field, val) => get_field(&record.data, field).is_some_and(|v| {
+                matches!(
+                    compare_values(v, val),
+                    Some(Ordering::Less | Ordering::Equal)
+                )
+            }),
+            Filter::Contains(field, substr) => get_field(&record.data, field)
+                .and_then(|v| v.as_str())
+                .is_some_and(|s| s.contains(substr.as_str())),
+            Filter::StartsWith(field, prefix) => get_field(&record.data, field)
+                .and_then(|v| v.as_str())
+                .is_some_and(|s| s.starts_with(prefix.as_str())),
 
             // Record-level predicates
             Filter::CreatedBy(key) => record.created_by == *key,
@@ -305,11 +295,20 @@ mod tests {
 
     #[test]
     fn compare_values_types() {
-        assert_eq!(compare_values(&json!(10), &json!(5)), Some(Ordering::Greater));
+        assert_eq!(
+            compare_values(&json!(10), &json!(5)),
+            Some(Ordering::Greater)
+        );
         assert_eq!(compare_values(&json!(5), &json!(10)), Some(Ordering::Less));
         assert_eq!(compare_values(&json!(5), &json!(5)), Some(Ordering::Equal));
-        assert_eq!(compare_values(&json!("b"), &json!("a")), Some(Ordering::Greater));
-        assert_eq!(compare_values(&json!(true), &json!(false)), Some(Ordering::Greater));
+        assert_eq!(
+            compare_values(&json!("b"), &json!("a")),
+            Some(Ordering::Greater)
+        );
+        assert_eq!(
+            compare_values(&json!(true), &json!(false)),
+            Some(Ordering::Greater)
+        );
         // Incompatible types
         assert_eq!(compare_values(&json!("str"), &json!(5)), None);
     }

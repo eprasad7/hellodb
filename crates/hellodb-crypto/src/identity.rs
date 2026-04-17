@@ -5,10 +5,8 @@
 //! be stored in hardware-backed keystores on mobile devices.
 
 use ed25519_dalek::{
-    Signer, Verifier,
-    SigningKey as DalekSigningKey,
+    Signature as DalekSignature, Signer, SigningKey as DalekSigningKey, Verifier,
     VerifyingKey as DalekVerifyingKey,
-    Signature as DalekSignature,
 };
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
@@ -208,10 +206,7 @@ mod tests {
         let kp = KeyPair::generate();
         let bytes = kp.signing.to_bytes();
         let restored = SigningKey::from_bytes(&bytes);
-        assert_eq!(
-            restored.verifying_key().to_bytes(),
-            kp.verifying.to_bytes()
-        );
+        assert_eq!(restored.verifying_key().to_bytes(), kp.verifying.to_bytes());
     }
 
     #[test]

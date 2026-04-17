@@ -71,9 +71,15 @@ mod tests {
     #[test]
     fn list_blobs_by_prefix() {
         let mut backend = MemorySyncBackend::new();
-        backend.put_blob("commerce/deltas/a/1.delta", b"d1").unwrap();
-        backend.put_blob("commerce/deltas/a/2.delta", b"d2").unwrap();
-        backend.put_blob("commerce/deltas/b/1.delta", b"d3").unwrap();
+        backend
+            .put_blob("commerce/deltas/a/1.delta", b"d1")
+            .unwrap();
+        backend
+            .put_blob("commerce/deltas/a/2.delta", b"d2")
+            .unwrap();
+        backend
+            .put_blob("commerce/deltas/b/1.delta", b"d3")
+            .unwrap();
         backend.put_blob("health/deltas/a/1.delta", b"d4").unwrap();
 
         let commerce = backend.list_blobs("commerce/deltas/").unwrap();

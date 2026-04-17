@@ -6,8 +6,8 @@
 use hellodb_crypto::{content_hash, Signature, SigningKey, VerifyingKey};
 use serde::{Deserialize, Serialize};
 
-use hellodb_core::canonical::canonicalize_value;
 use crate::error::AuthError;
+use hellodb_core::canonical::canonicalize_value;
 
 /// What a delegate is allowed to do in hellodb.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -169,7 +169,10 @@ mod tests {
         let deleg = DelegationCredential::new(
             &user.signing,
             agent.verifying.clone(),
-            vec![DelegationScope::ReadNamespace, DelegationScope::CrossNamespaceQuery],
+            vec![
+                DelegationScope::ReadNamespace,
+                DelegationScope::CrossNamespaceQuery,
+            ],
             vec!["ainp.commerce".into()],
             1000,
             3600_000, // 1 hour

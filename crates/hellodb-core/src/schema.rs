@@ -118,9 +118,9 @@ impl SchemaRegistry {
             .get(schema_id)
             .ok_or_else(|| CoreError::SchemaNotFound(schema_id.to_string()))?;
 
-        let obj = data.as_object().ok_or_else(|| {
-            CoreError::SchemaValidation("data must be a JSON object".into())
-        })?;
+        let obj = data
+            .as_object()
+            .ok_or_else(|| CoreError::SchemaValidation("data must be a JSON object".into()))?;
 
         for field in &schema.fields {
             if field.required && !obj.contains_key(&field.name) {
@@ -209,11 +209,7 @@ fn validate_field_type(
         FieldType::Array(inner) => {
             if let Some(arr) = value.as_array() {
                 for (i, item) in arr.iter().enumerate() {
-                    validate_field_type(
-                        &format!("{}[{}]", field_name, i),
-                        item,
-                        inner,
-                    )?;
+                    validate_field_type(&format!("{}[{}]", field_name, i), item, inner)?;
                 }
             } else {
                 return Err(CoreError::SchemaValidation(format!(
