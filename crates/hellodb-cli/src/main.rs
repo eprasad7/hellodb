@@ -321,7 +321,11 @@ fn cmd_recall(args: &[String]) -> Result<i32, String> {
     };
 
     // Skip silently if the namespace doesn't exist yet — common on fresh installs.
-    if storage.get_namespace(&namespace).map_err(|e| e.to_string())?.is_none() {
+    if storage
+        .get_namespace(&namespace)
+        .map_err(|e| e.to_string())?
+        .is_none()
+    {
         return Ok(0);
     }
 
@@ -392,7 +396,10 @@ fn cmd_recall(args: &[String]) -> Result<i32, String> {
                     })
                 })
                 .collect();
-            println!("{}", serde_json::to_string(&items).unwrap_or_else(|_| "[]".into()));
+            println!(
+                "{}",
+                serde_json::to_string(&items).unwrap_or_else(|_| "[]".into())
+            );
         }
         _ => {
             // Markdown bullet list. Group by topic so context is readable at a glance.
