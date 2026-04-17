@@ -13,7 +13,8 @@ export function Nav() {
           <span className="ml-1.5">hellodb</span>
         </Link>
         <nav className="flex items-center gap-1 sm:gap-2">
-          <NavLink href="#diagram">how it works</NavLink>
+          <NavLink href="/#diagram">how it works</NavLink>
+          <NavLink href="/blog">blog</NavLink>
           <NavLink
             href="https://github.com/eprasad7/hellodb"
             external

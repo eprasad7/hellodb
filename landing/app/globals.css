@@ -88,3 +88,96 @@
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Blog post typography. Scoped tight — only inside .prose-custom so it
+   doesn't bleed into the landing-page components. Matches the amber/serif
+   system but tuned for long-form reading width and rhythm. */
+.prose-custom p {
+  color: var(--color-fg-muted);
+}
+.prose-custom strong {
+  color: var(--color-fg);
+  font-weight: 600;
+}
+.prose-custom em {
+  color: var(--color-fg);
+  font-style: italic;
+}
+.prose-custom a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, var(--color-accent) 40%, transparent);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 150ms ease;
+}
+.prose-custom a:hover {
+  text-decoration-color: var(--color-accent);
+}
+.prose-custom code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  padding: 1px 6px;
+  border-radius: 6px;
+  color: var(--color-fg);
+}
+.prose-custom pre {
+  background: var(--color-bg-sunken);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.prose-custom pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+  color: var(--color-fg);
+}
+.prose-custom blockquote {
+  margin: 0;
+  padding: 8px 0 8px 20px;
+  border-left: 2px solid var(--color-accent);
+  color: var(--color-fg);
+  font-family: var(--font-display);
+  font-size: 1.08em;
+  font-style: italic;
+  line-height: 1.5;
+}
+.prose-custom ol {
+  counter-reset: item;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.prose-custom ol > li {
+  counter-increment: item;
+  padding-left: 40px;
+  position: relative;
+}
+.prose-custom ol > li::before {
+  content: counter(item);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--color-accent);
+  background: var(--color-accent-glow);
+  border: 1px solid color-mix(in oklch, var(--color-accent) 30%, transparent);
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
